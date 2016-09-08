@@ -17,7 +17,7 @@ class TestBinding(Binding):
 
     # not an override
     def clearMessages(self):
-        self.outbox.clear()
+        del self.outbox[:]
 
 
 class BindingTestCase(TestCase):
@@ -33,21 +33,6 @@ class BindingTestCase(TestCase):
 
     def tearDown(self):
         self.binding.dispose()
-
-    @unittest.skip
-    def testJSONPerformance(self):
-        import time, json
-        start = time.time()
-
-        # i got 200,000 in about a second
-        for x in range(200000):
-            json.dumps({
-                "name": "bob",
-                "age": 54,
-                "dependents": ["alice", "tony", "kendrik"]
-            })
-
-        print(time.time() - start)
 
     def testInitialPayload(self):
         # send all objects as they are now page by page

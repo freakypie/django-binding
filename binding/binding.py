@@ -52,13 +52,16 @@ class Binding(object):
         post_save.connect(
             self.model_saved,
             sender=self.model,
-            weak=False,
+            weak=True,
             dispatch_uid="binding:{}:save".format(self.name))
         post_delete.connect(
             self.model_deleted,
             sender=self.model,
-            weak=False,
+            weak=True,
             dispatch_uid="binding:{}:delete".format(self.name))
+
+    def __del__(self):
+        self.dispose()
 
     def dispose(self):
         count = 0
@@ -138,7 +141,6 @@ class Binding(object):
         if not v:
             v = 1
             self.cache.set("version", v)
-            print("initializing version", self.cache.get_key("version"), v)
 
         lm = self.cache.get("last-modified")
         if not lm:
@@ -153,9 +155,9 @@ class Binding(object):
         try:
             return self.cache.incr("version")
         except ValueError:
-            import traceback
-            traceback.print_stack()
-            print("couldn't get version", self.cache.get("version"))
+            # import traceback
+            # traceback.print_stack()
+            # print("couldn't get version", self.cache.get("version"))
             self.cache.set("version", 1)
             return 1
 

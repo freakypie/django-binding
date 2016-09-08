@@ -40,6 +40,10 @@ class BoundModelViewsetTestCase(TestCase):
     def tearDown(self):
         if self.viewset.binding:
             self.viewset.binding.dispose()
+        # if self.list_view.binding:
+        #     self.viewset.binding.dispose()
+        # if self.detail_view.binding:
+        #     self.viewset.binding.dispose()
 
     def api(self, view, method="GET", data={}, headers={}, kwargs={}):
         request = getattr(self.factory, method.lower())(
@@ -66,7 +70,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
 
         response = self.api(self.list_view, headers=dict(
-            HTTP_IF_MODIFIED_SINCE=http_date(dt.timestamp())
+            HTTP_IF_MODIFIED_SINCE=http_date(time.mktime(dt.timetuple()))
         ))
         self.assertEqual(response.status_code, 304)
 
@@ -86,7 +90,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
 
         response = self.api(self.detail_view, kwargs=dict(pk=1), headers=dict(
-            HTTP_IF_MODIFIED_SINCE=http_date(dt.timestamp())
+            HTTP_IF_MODIFIED_SINCE=http_date(time.mktime(dt.timetuple()))
         ))
         self.assertEqual(response.status_code, 304)
 
@@ -118,7 +122,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def testChanged(self):
-        etag = str(self.viewset.get_binding().last_modified.timestamp())
+        etag = str(self.viewset.get_binding().version)
 
         self.t1.name = "Chocolate"
         self.t1.save()
