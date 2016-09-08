@@ -98,7 +98,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 304)
 
     def testAdded(self):
-        etag = str(self.viewset.get_binding().last_modified.timestamp())
+        etag = str(self.viewset.get_binding().version)
 
         Product.objects.create(name="Foo")
 
