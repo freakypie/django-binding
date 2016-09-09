@@ -1,19 +1,29 @@
 # Django Binding
 
-provide server side binding targets for data binding,
-this only provides updates use something else to update your models
+Provides server a real time cache for querysets.
 
-also providing binding implementations for DRF, django-node-websockets and django channels
+A binding will keep a cached queryset and
+registers Django signals to update the cache as the models change.
 
-## Groups?
+Naturally changes that don't trigger a Django post_save or post_delete will
+not cause the cache to be updated.
 
-  - provide subscription
-  - automatically disconnect
+Also providing binding implementations for:
 
-## Binding
+- [x] DRF
+- [ ] django-node-websockets
+- [ ] django channels
 
-  - filtered queryset (for binding, not per user)
-  - provides current state
-  - provides delta state
-  - sends updates on data change
-  - automatically
+
+# Getting started
+
+create a binding:
+
+    from binding import Binding
+
+    # bind all active users
+    class UserBinding(Binding):
+        filters = dict(active=True)
+
+    users = UserBinding()
+    users.all()  # will get a cache of the currently active users

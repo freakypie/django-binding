@@ -129,7 +129,8 @@ class Binding(object):
         excludes = self.get_excludes()
         if excludes:
             qs = qs.exclude(**excludes)
-        # print("getting from db:", qs)
+        # print("getting from db:", self.cache_key, qs, "filters",
+        #     self.get_filters(), self.get_excludes())
         return qs
 
     @property
