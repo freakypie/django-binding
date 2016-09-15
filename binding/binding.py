@@ -1,7 +1,4 @@
-import time
-
 from django.core.cache import get_cache
-from django.db.models.signals import post_delete, post_save
 from django.utils import timezone
 
 
@@ -26,6 +23,7 @@ class CacheDict(object):
 
 
 class Binding(object):
+    bindings = {}
     model = None
     filters = {}
     excludes = None
@@ -33,8 +31,11 @@ class Binding(object):
     # no promises this will work without cache or db
     cache_name = "default"
     db = True
+    listeners = None
 
     def __init__(self, model=None, name=None):
+        self.listeners = []
+
         if model:
             self.model = model
         if not name:
@@ -49,54 +50,48 @@ class Binding(object):
             )
             self.get_or_start_version()
 
-        post_save.connect(
-            self.model_saved,
-            sender=self.model,
-            weak=True,
-            dispatch_uid="binding:{}:save".format(self.name))
-        post_delete.connect(
-            self.model_deleted,
-            sender=self.model,
-            weak=True,
-            dispatch_uid="binding:{}:delete".format(self.name))
-
-    def __del__(self):
-        self.dispose()
+        if self.model not in self.bindings:
+            self.bindings[self.model] = []
+        self.bindings[self.model].append(self)
+        # print("binding", Binding.bindings)
 
     def dispose(self):
-        count = 0
-        count += post_save.disconnect(
-            sender=self.model,
-            dispatch_uid="binding:{}:save".format(self.name))
-        count += post_delete.disconnect(
-            sender=self.model,
-            dispatch_uid="binding:{}:delete".format(self.name))
-        # print("disposed (should be 2):", count)
+        home = self.bindings.get(self.model, [])
+        if self in home:
+            home.remove(self)
 
     def model_saved(self, instance=None, created=None, **kwargs):
         # print("model saved", instance)
         objects = self._get_queryset()
         if self.model_matches(instance):
-            self.message(created and "create" or "update", instance)
+            # print("updating", instance)
             objects[instance.id] = instance
             self.updated(objects)
+            self.message(created and "create" or "update", instance)
         elif instance.id in objects:
             self.model_deleted(instance, **kwargs)
 
     def model_deleted(self, instance=None, **kwargs):
+        # print("model deleted", instance)
         objects = self._get_queryset()
-        if self.model_matches(instance) or instance.id in objects:
-            self.message("delete", instance)
+        contained = instance.id in objects
+        if self.model_matches(instance) or contained:
 
-            if instance.id in objects:
+            if contained:
                 del objects[instance.id]
                 self.updated(objects)
+
+            # print("deleting", instance)
+            self.message("delete", instance)
 
     def model_matches(self, instance):
         for key, value in self.get_filters().items():
             if getattr(instance, key, None) != value:
                 return False
         return True
+
+    def get_q(self):
+        return tuple()
 
     def get_filters(self):
         return self.filters
@@ -125,12 +120,14 @@ class Binding(object):
         return qs
 
     def _get_queryset_from_db(self):
-        qs = self.model.objects.filter(**self.get_filters())
+        qs = self.model.objects.filter(*self.get_q(), **self.get_filters())
         excludes = self.get_excludes()
         if excludes:
             qs = qs.exclude(**excludes)
-        # print("getting from db:", self.cache_key, qs, "filters",
-        #     self.get_filters(), self.get_excludes())
+        # print(
+        #     "getting from db:", self.cache_key, qs, "filters",
+        #     self.get_filters(), self.get_excludes()
+        # )
         return qs
 
     @property
@@ -170,10 +167,20 @@ class Binding(object):
     def all(self):
         return self._get_queryset()
 
+    def addListener(self, l):
+        if l not in self.listeners:
+            self.listeners.append(l)
+
+    def removeListener(self, l):
+        if l in self.listeners:
+            self.listeners.remove(l)
+
     def message(self, action, data):
-        # print()
-        # import traceback
-        # traceback.print_stack()
-        # print()
-        # print("!!! base message function", action, data)
-        return None
+        for listener in self.listeners:
+            listener(action, data, binding=self)
+
+    def serialize(self):
+        return dict(
+            version=self.version,
+            last_modified=str(self.last_modified),
+        )

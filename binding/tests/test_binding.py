@@ -13,6 +13,7 @@ class TestBinding(Binding):
     outbox = []
 
     def message(self, action, data):
+        super(TestBinding, self).message(action, data)
         self.outbox.append((action, data))
 
     # not an override
@@ -32,7 +33,7 @@ class BindingTestCase(TestCase):
         self.binding.clearMessages()
 
     def tearDown(self):
-        self.binding.dispose()
+        Binding.bindings = {}
 
     def testInitialPayload(self):
         # send all objects as they are now page by page
@@ -142,3 +143,50 @@ class BindingTestCase(TestCase):
 
         self.assertEqual(len(self.binding.outbox), 1)
         self.assertEqual(len(self.binding.all().keys()), 1)
+
+    def testDoubleRegisterListener(self):
+
+        def listener(action, data):
+            pass
+
+        self.binding.addListener(listener)
+        self.binding.addListener(listener)
+        self.assertEqual(len(self.binding.listeners), 1)
+
+    def testDoubleRemoveListener(self):
+
+        def listener(action, data, **kwargs):
+            pass
+
+        self.binding.addListener(listener)
+        self.binding.removeListener(listener)
+        self.binding.removeListener(listener)  # no error
+        self.assertEqual(len(self.binding.listeners), 0)
+
+    def testDoubleListenerStatic(self):
+
+        class Foo:
+            @classmethod
+            def listener(action, data, **kwargs):
+                pass
+
+        self.binding.addListener(Foo().listener)
+        self.binding.addListener(Foo().listener)
+        self.assertEqual(len(self.binding.listeners), 1)
+        self.binding.removeListener(Foo().listener)
+        self.binding.removeListener(Foo().listener)  # no error
+        self.assertEqual(len(self.binding.listeners), 0)
+
+    def testListener(self):
+        self.listened = 0
+
+        def listener(action, data, **kwargs):
+            self.listened += 1
+        self.binding.addListener(listener)
+
+        Product.objects.create(name="t4", venue="garbage")
+        self.t2.venue = "store"
+        self.t2.save()
+        self.t3.delete()
+
+        self.assertEqual(self.listened, 3)
