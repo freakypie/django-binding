@@ -19,7 +19,7 @@ class Pending(object):
 
 
 @shared_task
-def enqueue(event, groups, binding, packet, delay=0.5):
+def enqueue(event, groups, binding, packet, delay=2):
     ident = key(event, groups)
     queue = Pending.queues.get(ident, [])
     queue.append(packet)
@@ -27,13 +27,12 @@ def enqueue(event, groups, binding, packet, delay=0.5):
 
     timer = str(time.time())
     Pending.queues.set(ident + ":key", timer)
-    debug.error("%s: timer set %s", ident, timer)
     _process_queue.apply_async(
-        (timer, event, groups, binding, packet), countdown=delay)
+        (timer, event, groups, binding), countdown=delay)
 
 
 @shared_task
-def _process_queue(timer, event, groups, binding, packet, delay=0.1):
+def _process_queue(timer, event, groups, binding):
     # this should only be run if DNW is installed
     from websockets.utils import get_emitter
 
@@ -42,7 +41,6 @@ def _process_queue(timer, event, groups, binding, packet, delay=0.1):
     if len(queue) > 0 and (
         len(queue) > 25 or Pending.queues.get(ident + ":key") == timer
     ):
-        debug.error("sending: %s", len(queue))
         get_emitter().To(groups).Emit(event, {
             "events": queue,
             "version": binding['version'],

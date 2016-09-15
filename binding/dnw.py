@@ -11,6 +11,8 @@ class BoundWebsocketMixin(WebsocketMixin):
     event = None
     binding = None
     groups = []
+    sync_delay = 0.1
+    update_delay = 1
 
     def get_binding(self):
         return self.binding
@@ -45,7 +47,8 @@ class BoundWebsocketMixin(WebsocketMixin):
                     dict(
                         action="sync",
                         payload=self.serialize(binding.all())
-                    )
+                    ),
+                    delay=self.sync_delay
                 )
 
             return Response({
@@ -63,7 +66,7 @@ class BoundWebsocketMixin(WebsocketMixin):
         enqueue.delay(self.event, self.groups, binding, {
             "action": action,
             "payload": self.serialize({data.pk: data}),
-        })
+        }, delay=self.update_delay)
 
 
 class WebsocketView(BoundWebsocketMixin, APIView):
