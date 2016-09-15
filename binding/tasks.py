@@ -1,7 +1,6 @@
 
 import logging
 import time
-from hashlib import md5
 
 from celery import shared_task
 
@@ -11,11 +10,11 @@ debug = logging.getLogger("debug")
 
 
 def key(event, groups):
-    return md5("{}.{}".format(event, "*".join(groups))).hexdigest()
+    return "{}.{}".format(event, "*".join(groups))
 
 
 class Pending(object):
-    queues = CacheDict("Binding-enequeue")
+    queues = CacheDict("Binding-enqueue")
 
 
 @shared_task
