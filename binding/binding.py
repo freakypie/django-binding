@@ -181,6 +181,7 @@ class Binding(object):
 
     def serialize(self):
         return dict(
+            name=self.name,
             version=self.version,
             last_modified=str(self.last_modified),
         )

@@ -46,7 +46,7 @@ class BoundWebsocketMixin(WebsocketMixin):
                     binding.serialize(),
                     dict(
                         action="sync",
-                        payload=self.serialize(binding.all())
+                        payload=self.serialize(binding.all(), binding=binding)
                     ),
                     delay=self.sync_delay
                 )
@@ -65,7 +65,7 @@ class BoundWebsocketMixin(WebsocketMixin):
         binding = binding and binding.serialize() or None
         enqueue.delay(self.event, self.groups, binding, {
             "action": action,
-            "payload": self.serialize({data.pk: data}),
+            "payload": self.serialize({data.pk: data}, binding=binding),
         }, delay=self.update_delay)
 
 
