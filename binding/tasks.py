@@ -10,7 +10,7 @@ debug = logging.getLogger("debug")
 
 
 def key(event, groups):
-    return "{}.{}".format(event, "*".join(groups))
+    return "{}.{}.1".format(event, "*".join(groups))
 
 
 class Pending(object):

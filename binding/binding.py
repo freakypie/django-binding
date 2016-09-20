@@ -64,23 +64,21 @@ class Binding(object):
         # print("model saved", instance)
         objects = self._get_queryset()
         if self.model_matches(instance):
-            # print("updating", instance)
-            objects[instance.id] = instance
+            serialized = self.serialize_object(instance)
+            # print("updating", serialized)
+            objects[instance.id] = serialized
             self.updated(objects)
-            self.message(created and "create" or "update", instance)
+            self.message(created and "create" or "update", serialized)
         elif instance.id in objects:
             self.model_deleted(instance, **kwargs)
 
     def model_deleted(self, instance=None, **kwargs):
-        # print("model deleted", instance)
         objects = self._get_queryset()
         contained = instance.id in objects
         if contained:
 
             del objects[instance.id]
             self.updated(objects)
-
-            # print("deleting", instance)
             self.message("delete", instance)
 
     def model_matches(self, instance):
@@ -104,7 +102,7 @@ class Binding(object):
             objects = self._get_queryset_from_cache()
         if self.db and objects is None:
             objects = dict([
-                (o.id, o) for o in self._get_queryset_from_db()
+                (o.id, self.serialize_object(o)) for o in self._get_queryset_from_db()
             ])
             self.updated(objects)
         return objects or {}
@@ -148,6 +146,12 @@ class Binding(object):
         return self.cache.get("last-modified")
 
     def bump(self):
+        # print("\n")
+        # import traceback
+        # traceback.print_stack()
+        # print("*" * 20)
+        # print("bumping version", self.version)
+
         self.cache.set("last-modified", timezone.now())
         try:
             return self.cache.incr("version")
@@ -159,7 +163,6 @@ class Binding(object):
             return 1
 
     def updated(self, objects):
-        # print("updating cache", objects)
         self.cache.set("objects", objects)
         self.bump()
 
@@ -177,6 +180,9 @@ class Binding(object):
     def message(self, action, data):
         for listener in self.listeners:
             listener(action, data, binding=self)
+
+    def serialize_object(self, obj):
+        return obj
 
     def serialize(self):
         return dict(

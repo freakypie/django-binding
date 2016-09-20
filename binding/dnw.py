@@ -45,7 +45,8 @@ class BoundWebsocketMixin(WebsocketMixin):
                     binding.serialize(),
                     dict(
                         action="sync",
-                        payload=self.serialize(binding.all(), binding=binding)
+                        payload=self.serialize(
+                            "sync", binding.all(), binding=binding)
                     ),
                     delay=self.sync_delay
                 )
@@ -56,15 +57,24 @@ class BoundWebsocketMixin(WebsocketMixin):
             })
 
     @classmethod
-    def serialize(self, data):
-        return data
+    def serialize(self, action, data, binding=None):
+        if action == "delete":
+            retval = []
+            for key in data.keys():
+                retval.append({"id": key})
+            return retval
+        return data.values()
 
     @classmethod
     def message(self, action, data, binding=None):
         binding = binding and binding.serialize() or None
+        try:
+            pk = data.pk
+        except AttributeError:
+            pk = data.get("id", None)
         enqueue.delay(self.event, self.groups, binding, {
             "action": action,
-            "payload": self.serialize({data.pk: data}, binding=binding),
+            "payload": self.serialize(action, {pk: data}, binding=binding),
         }, delay=self.update_delay)
 
 

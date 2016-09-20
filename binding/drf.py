@@ -52,11 +52,6 @@ class BindingMixin(object):
             super(BindingMixin, self).list
         )(request, *args, **kwargs)
 
-    @classmethod
-    def as_view(self, *args, **kwargs):
-        # print(args, kwargs)
-        return super(BindingMixin, self).as_view(*args, **kwargs)
-
 
 class BoundModelViewSet(BindingMixin, ModelViewSet):
     pass

@@ -34,8 +34,8 @@ class BoundModelViewsetTestCase(TestCase):
         self.t3 = Product.objects.create(name="t3", venue="online")
         self.factory = APIRequestFactory()
         self.viewset = TestBoundModelViewset()
-        self.list_view = self.viewset.as_view({"get": "list"})
-        self.detail_view = self.viewset.as_view({"get": "retrieve"})
+        self.list_view = TestBoundModelViewset.as_view({"get": "list"})
+        self.detail_view = TestBoundModelViewset.as_view({"get": "retrieve"})
 
     def tearDown(self):
         if self.viewset.binding:
