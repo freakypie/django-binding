@@ -54,7 +54,10 @@ class BindingTestCase(TestCase):
 
     def testDeleteSignal(self):
         self.assertEqual(len(self.binding.outbox), 0)
+        self.assertEqual(self.binding.version, 1)
+        self.assertEqual(len(self.binding.all().values()), 3)
         self.t3.delete()
+        self.assertEqual(self.binding.version, 3)
         self.assertEqual(len(self.binding.outbox), 1)
 
     def testChangeSignal(self):
@@ -74,6 +77,7 @@ class BindingTestCase(TestCase):
         for item in [self.t1, self.t2]:
             self.assertIn(item.id, dataset)
         self.assertEqual(len(dataset), 2)
+        self.assertEqual(self.binding.version, 2)
 
     def testFilteredAdd(self):
         self.binding.filters = dict(venue="store")

@@ -75,11 +75,10 @@ class Binding(object):
         # print("model deleted", instance)
         objects = self._get_queryset()
         contained = instance.id in objects
-        if self.model_matches(instance) or contained:
+        if contained:
 
-            if contained:
-                del objects[instance.id]
-                self.updated(objects)
+            del objects[instance.id]
+            self.updated(objects)
 
             # print("deleting", instance)
             self.message("delete", instance)

@@ -38,7 +38,6 @@ class BoundWebsocketMixin(WebsocketMixin):
             except (TypeError, ValueError):
                 version = -1
 
-            print("should sync? {} {}".format(version, binding.version))
             if not version or version != binding.version:
                 enqueue.delay(
                     self.event,

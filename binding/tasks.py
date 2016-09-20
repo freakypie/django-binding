@@ -43,6 +43,6 @@ def _process_queue(timer, event, groups, binding):
         get_emitter().To(groups).Emit(event, {
             "events": queue,
             "version": binding['version'],
-            "last-modified": ident,  # binding['last_modified'],
+            "last-modified": binding['last_modified'],
         })
         Pending.queues.set(ident, [])
