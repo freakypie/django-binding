@@ -86,8 +86,8 @@ class Binding(object):
 
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
-        # print("model saved", instance)
         objects = self.keys()
+        # print("model saved", instance)
         if self.model_matches(instance):
             self.save_instance(objects, instance, created)
         elif instance.id in objects:
@@ -97,7 +97,7 @@ class Binding(object):
         """ delete hook called when by signal """
         objects = self.keys()
         contained = instance.id in objects
-        print(instance.id, objects, contained)
+        # print("model deleted", instance)
         if contained:
             self.delete_instance(objects, instance)
 
