@@ -68,7 +68,7 @@ class Binding(object):
 
         if self.cache_name:
             self.cache = CacheDict(
-                prefix="Binding:" + self.name,
+                prefix="binding1:" + self.name,
                 cache_name=self.cache_name
             )
             self.get_or_start_version()
