@@ -72,6 +72,7 @@ class Binding(object):
                 cache_name=self.cache_name
             )
             self.get_or_start_version()
+            self.all()
 
         if self.model not in self.bindings:
             self.bindings[self.model] = []
@@ -103,7 +104,7 @@ class Binding(object):
     def save_instance(self, objects, instance, created):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
-        objects = objects.append(instance.id)
+        objects.append(instance.id)
         self.cache.set(instance.id, serialized)
         self.cache.set("objects", objects)
         self.bump()
@@ -181,7 +182,7 @@ class Binding(object):
     def get_or_start_version(self):
         v = self.cache.get("version")
         if not v:
-            v = 1
+            v = 0
             self.cache.set("version", v)
 
         lm = self.cache.get("last-modified")
@@ -236,4 +237,4 @@ class Binding(object):
         return self._get_queryset()
 
     def keys(self):
-        return self.cache.get("objects", [])
+        return self.cache.get("objects") or []
