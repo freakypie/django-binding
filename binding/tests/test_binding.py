@@ -1,3 +1,5 @@
+import sys
+import time
 import unittest
 
 from django.core.cache import cache
@@ -33,7 +35,38 @@ class BindingTestCase(TestCase):
         self.binding.clearMessages()
 
     def tearDown(self):
+        self.binding.filters = {}
         Binding.bindings = {}
+
+    def testLargeSetReadWrite(self):
+        start = time.time()
+        for x in range(100):
+            Product.objects.create(
+                name="t-{}".format(x), venue="online"
+            )
+            self.binding.all()
+        d = time.time() - start
+        sys.stdout.write(" [RW: {:.4}s] - ".format(d))
+
+    def testLargeSetWrite(self):
+        start = time.time()
+        for x in range(100):
+            Product.objects.create(
+                name="t-{}".format(x), venue="online"
+            )
+        d = time.time() - start
+        sys.stdout.write(" [W: {:.4}s] - ".format(d))
+
+    def testLargeSetRead(self):
+        for x in range(100):
+            Product.objects.create(
+                name="t-{}".format(x), venue="online"
+            )
+        start = time.time()
+        for x in range(100):
+            self.binding.all()
+        d = time.time() - start
+        sys.stdout.write(" [R: {:.4}s] - ".format(d))
 
     def testInitialPayload(self):
         # send all objects as they are now page by page
@@ -106,9 +139,13 @@ class BindingTestCase(TestCase):
         self.assertEqual(len(self.binding.outbox), 1)
 
     def testFilteredDelete(self):
+        print(self.binding.all())
+
         # delete object that the binding should ignore
         self.binding.filters = dict(venue="store")
         self.assertEqual(len(self.binding.outbox), 0)
+
+        print(self.binding.keys())
 
         # delete an object that the binding should ignore
         self.t3.delete()

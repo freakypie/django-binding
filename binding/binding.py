@@ -8,6 +8,7 @@ class CacheDict(object):
         self.prefix = prefix
         self.cache = get_cache(cache_name)
         self.timeout = timeout
+        self.hasExpire = getattr(self.cache, "expire", None)
 
     def get_key(self, name):
         return "{}:{}".format(self.prefix, name)
@@ -15,11 +16,33 @@ class CacheDict(object):
     def get(self, name, default=None):
         return self.cache.get(self.get_key(name), default)
 
+    def get_many(self, keys, default=None):
+        many = self.cache.get_many([
+            self.get_key(key) for key in keys
+        ])
+        retval = {}
+        for key, value in many.items():
+            retval[int(key.rsplit(":")[-1])] = value
+        return retval
+
+    def set_many(self, objects, timeout=None):
+        sending = {}
+        for key, value in objects.items():
+            sending[self.get_key(key)] = value
+        self.cache.set_many(sending, timeout)
+
     def set(self, name, value):
         self.cache.set(self.get_key(name), value, self.timeout)
 
     def incr(self, name, amount=1):
         self.cache.incr(self.get_key(name), 1, self.timeout)
+
+    def expire(self, name, timeout=0):
+        if self.hasExpire:
+            self.cache.expire(self.get_key(name), timeout)
+
+    def clear(self):
+        self.cache.delete_pattern(self.get_key("*"))
 
 
 class Binding(object):
@@ -61,27 +84,47 @@ class Binding(object):
             home.remove(self)
 
     def model_saved(self, instance=None, created=None, **kwargs):
+        """ save hook called when by signal """
         # print("model saved", instance)
-        objects = self._get_queryset()
+        objects = self.keys()
         if self.model_matches(instance):
-            serialized = self.serialize_object(instance)
-            # print("updating", serialized)
-            objects[instance.id] = serialized
-            self.updated(objects)
-            self.message(created and "create" or "update", serialized)
+            self.save_instance(objects, instance, created)
         elif instance.id in objects:
             self.model_deleted(instance, **kwargs)
 
     def model_deleted(self, instance=None, **kwargs):
-        objects = self._get_queryset()
+        """ delete hook called when by signal """
+        objects = self.keys()
         contained = instance.id in objects
+        print(instance.id, objects, contained)
         if contained:
+            self.delete_instance(objects, instance)
 
-            del objects[instance.id]
-            self.updated(objects)
-            self.message("delete", instance)
+    def save_instance(self, objects, instance, created):
+        """ called when a matching model is saved """
+        serialized = self.serialize_object(instance)
+        objects = objects.append(instance.id)
+        self.cache.set(instance.id, serialized)
+        self.cache.set("objects", objects)
+        self.bump()
+        self.message(created and "create" or "update", serialized)
+
+    def delete_instance(self, objects, instance):
+        """ called when a matching model is deleted """
+        objects.remove(instance.id)
+        self.cache.expire(instance.id)
+        self.cache.set("objects", objects)
+        self.bump()
+        self.message("delete", instance)
+
+    def save_many_instances(self, instances):
+        """ called when the binding is first attached """
+        self.cache.set_many(instances)
+        self.cache.set("objects", instances.keys())
+        self.bump()
 
     def model_matches(self, instance):
+        """ called to determine if the model is part of the queryset """
         for key, value in self.get_filters().items():
             if getattr(instance, key, None) != value:
                 return False
@@ -102,9 +145,10 @@ class Binding(object):
             objects = self._get_queryset_from_cache()
         if self.db and objects is None:
             objects = dict([
-                (o.id, self.serialize_object(o)) for o in self._get_queryset_from_db()
+                (o.id, self.serialize_object(o))
+                for o in self._get_queryset_from_db()
             ])
-            self.updated(objects)
+            self.save_many_instances(objects)
         return objects or {}
 
     @property
@@ -112,9 +156,12 @@ class Binding(object):
         return self.cache.get_key("objects")
 
     def _get_queryset_from_cache(self):
-        qs = self.cache.get("objects", None)
-        # print("cache returned:", qs)
-        return qs
+        keys = self.cache.get("objects", None)
+        if keys is not None:
+            qs = self.cache.get_many(keys)
+            # print("cache returned:", keys, qs)
+            return qs
+        return None
 
     def _get_queryset_from_db(self):
         qs = self.model.objects.filter(*self.get_q(), **self.get_filters())
@@ -162,13 +209,6 @@ class Binding(object):
             self.cache.set("version", 1)
             return 1
 
-    def updated(self, objects):
-        self.cache.set("objects", objects)
-        self.bump()
-
-    def all(self):
-        return self._get_queryset()
-
     def addListener(self, l):
         if l not in self.listeners:
             self.listeners.append(l)
@@ -190,3 +230,10 @@ class Binding(object):
             version=self.version,
             last_modified=str(self.last_modified),
         )
+
+    # queryset operations
+    def all(self):
+        return self._get_queryset()
+
+    def keys(self):
+        return self.cache.get("objects", [])

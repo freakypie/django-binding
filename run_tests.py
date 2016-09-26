@@ -20,18 +20,29 @@ settings.configure(
         'django.contrib.admin',
         'binding',
         'binding_test',
+        'django_redis',
     ),
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'django-binding',
+    CACHES={
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": "redis://localhost:6379/10",
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+            }
         }
-    }
+    },
+    # CACHES={
+    #     'default': {
+    #         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    #         'LOCATION': 'django-binding',
+    #     }
+    # }
 )
 
 django.setup()
-test_runner = DiscoverRunner(verbosity=1, fail_fast=True, failfast=True)
+test_runner = DiscoverRunner(verbosity=1, failfast=True)
 
-failures = test_runner.run_tests(['binding'], failfast=True)
+failures = test_runner.run_tests(['binding'])
 if failures:
     sys.exit(failures)
