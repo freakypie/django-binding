@@ -91,7 +91,7 @@ class Binding(object):
         if self.model_matches(instance):
             self.save_instance(objects, instance, created)
         elif instance.id in objects:
-            self.model_deleted(instance, **kwargs)
+            self.delete_instance(instance, **kwargs)
 
     def model_deleted(self, instance=None, **kwargs):
         """ delete hook called when by signal """
