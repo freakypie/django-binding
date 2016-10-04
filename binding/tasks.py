@@ -1,5 +1,7 @@
 
+import datetime
 import logging
+import socket
 import time
 
 from celery import shared_task
@@ -42,7 +44,9 @@ def _process_queue(timer, event, groups, binding):
     ):
         get_emitter().To(groups).Emit(event, {
             "events": queue,
+            "server": socket.gethostname(),
+            "binding": binding['name'],
             "version": binding['version'],
-            "last-modified": binding['last_modified'],
+            "last-modified": str(binding['last_modified']),
         })
         Pending.queues.set(ident, [])

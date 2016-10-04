@@ -38,9 +38,7 @@ class BoundWebsocketMixin(WebsocketMixin):
             except (TypeError, ValueError):
                 version = -1
 
-            print("version", version, binding.version)
             if not version or version != binding.version:
-                print("serializing")
                 enqueue.delay(
                     self.event,
                     [self.socket_id],
