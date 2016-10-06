@@ -45,8 +45,7 @@ class CacheDict(object):
             self.cache.expire(self.get_key(name), timeout)
 
     def pattern(self, p):
-        for key in self.cache.iter_keys(self.get_key(p)):
-            yield self.cache.get(key)
+        return self.cache.get_many(self.cache.keys(self.get_key(p))).values()
 
     def clear(self):
         self.cache.delete_pattern(self.get_key("*"))
