@@ -42,11 +42,13 @@ def _process_queue(timer, event, groups, binding):
     if len(queue) > 0 and (
         len(queue) > 25 or Pending.queues.get(ident + ":key") == timer
     ):
-        get_emitter().To(groups).Emit(event, {
-            "events": queue,
-            "server": socket.gethostname(),
-            "binding": binding['name'],
-            "version": binding['version'],
-            "last-modified": str(binding['last_modified']),
-        })
-        Pending.queues.set(ident, [])
+        try:
+            get_emitter().To(groups).Emit(event, {
+                "events": queue,
+                "server": socket.gethostname(),
+                "binding": binding['name'],
+                "version": binding['version'],
+                "last-modified": str(binding['last_modified']),
+            })
+        finally:
+            Pending.queues.set(ident, [])

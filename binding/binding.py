@@ -13,6 +13,9 @@ class CacheDict(object):
     def get_key(self, name):
         return "{}:{}".format(self.prefix, name)
 
+    def strip_key(self, key):
+        return key[len(self.prefix):]
+
     def get(self, name, default=None):
         return self.cache.get(self.get_key(name), default)
 
@@ -31,8 +34,8 @@ class CacheDict(object):
             sending[self.get_key(key)] = value
         self.cache.set_many(sending, timeout)
 
-    def set(self, name, value):
-        self.cache.set(self.get_key(name), value, self.timeout)
+    def set(self, name, value, timeout=None):
+        self.cache.set(self.get_key(name), value, timeout or self.timeout)
 
     def incr(self, name, amount=1):
         self.cache.incr(self.get_key(name), 1, self.timeout)
@@ -41,12 +44,16 @@ class CacheDict(object):
         if self.hasExpire:
             self.cache.expire(self.get_key(name), timeout)
 
+    def pattern(self, p):
+        for key in self.cache.iter_keys(self.get_key(p)):
+            yield self.cache.get(key)
+
     def clear(self):
         self.cache.delete_pattern(self.get_key("*"))
 
 
 class Binding(object):
-    bindings = {}
+    bindings = CacheDict("binding-list")
     model = None
     filters = {}
     excludes = None
@@ -56,10 +63,25 @@ class Binding(object):
     meta_cache = None
     object_cache = None
     db = True
-    listeners = None
+
+    @classmethod
+    def get(self, model, name):
+        return self.bindings.get(
+            "{}:{}".format(model.__name__, name))
+
+    def __getstate__(self):
+        odict = self.__dict__.copy()
+        for key in ['bindings', 'meta_cache', 'object_cache']:
+            if key in odict:
+                del odict[key]
+        return odict
+
+    def __setstate__(self, data):
+        self.__dict__.update(data)
+        self.meta_cache = self.create_meta_cache()
+        self.object_cache = self.create_object_cache()
 
     def __init__(self, model=None, name=None):
-        self.listeners = []
 
         if model:
             self.model = model
@@ -67,17 +89,14 @@ class Binding(object):
             name = self.model.__name__
 
         self.name = name
+        self.meta_cache = self.create_meta_cache()
+        self.object_cache = self.create_object_cache()
+        self.get_or_start_version()
+        self.bindings_key = "{}:{}".format(self.model.__name__, self.name)
+        self.register()
 
-        if self.cache_name:
-            self.meta_cache = self.create_meta_cache()
-            self.object_cache = self.create_object_cache()
-            self.get_or_start_version()
-            self.all()
-
-        if self.model not in self.bindings:
-            self.bindings[self.model] = []
-        self.bindings[self.model].append(self)
-        # print("binding", Binding.bindings)
+    def register(self):
+        self.bindings.set(self.bindings_key, self, 60 * 60 * 24)
 
     def create_meta_cache(self):
         return CacheDict(
@@ -199,6 +218,7 @@ class Binding(object):
         if not v:
             v = 0
             self.meta_cache.set("version", v)
+            self.all()
 
         lm = self.meta_cache.get("last-modified")
         if not lm:
@@ -225,17 +245,8 @@ class Binding(object):
             self.meta_cache.set("version", 1)
             return 1
 
-    def addListener(self, l):
-        if l not in self.listeners:
-            self.listeners.append(l)
-
-    def removeListener(self, l):
-        if l in self.listeners:
-            self.listeners.remove(l)
-
     def message(self, action, data):
-        for listener in self.listeners:
-            listener(action, data, binding=self)
+        pass
 
     def serialize_object(self, obj):
         return obj

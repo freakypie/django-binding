@@ -5,77 +5,70 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .tasks import enqueue
+from .binding import Binding
+
+
+class WebsocketBinding(Binding):
+    update_delay = 1
+    sync_delay = 0.1
+    group = None
+    event = None
+
+    def get_user_group(self):
+        return self.group
+
+    def serialize_message(self, action, data, binding=None):
+        if action == "delete":
+            return [{"id": data.id}]
+        if action == "update":
+            return [data]
+        return data.values()
+
+    def message(self, action, data, whom=None):
+        if action == "sync":
+            print("sending sync message", action, whom, self.event, self.get_user_group())
+        else:
+            print("sending message", action, data, self.event, self.get_user_group())
+        enqueue.delay(
+            self.event,
+            [whom or self.get_user_group()],
+            self.serialize(),
+            dict(
+                action=action,
+                payload=self.serialize_message(action, data),
+            ),
+            delay=self.update_delay
+        )
 
 
 class BoundWebsocketMixin(WebsocketMixin):
-    event = None
     binding = None
-    groups = []
-    sync_delay = 0.1
-    update_delay = 1
 
     def get_binding(self):
         return self.binding
 
-    def get_user_group(self):
-        return self.groups[0]
-
     def post(self, request, event=None):
+        binding = self.get_binding()
 
         if self.data.get("disconnect"):
             return Response({
                 "event": "__cmd__",
-                "leave": [self.get_user_group()]
+                "leave": [binding.get_user_group()]
             })
         else:
-            # ensure that we are connected
-            # with the outgoing messages of our bidning
-            binding = self.get_binding()
-            binding.addListener(self.message)
-
             try:
                 version = int(self.data.get("version"))
             except (TypeError, ValueError):
                 version = -1
 
             if not version or version != binding.version:
-                enqueue.delay(
-                    self.event,
-                    [self.socket_id],
-                    binding.serialize(),
-                    dict(
-                        action="sync",
-                        payload=self.serialize(
-                            "sync", binding.all(), binding=binding)
-                    ),
-                    delay=self.sync_delay
-                )
+                binding.message("sync", binding.all(), whom=self.socket_id)
 
+            print("joining group", binding.get_user_group())
             return Response({
                 "event": "__cmd__",
-                "join": [self.get_user_group()]
+                "join": [binding.get_user_group()]
             })
-
-    @classmethod
-    def serialize(self, action, data, binding=None):
-        if action == "delete":
-            retval = []
-            for key in data.keys():
-                retval.append({"id": key})
-            return retval
-        return data.values()
-
-    @classmethod
-    def message(self, action, data, binding=None):
-        binding = binding and binding.serialize() or None
-        try:
-            pk = data.pk
-        except AttributeError:
-            pk = data.get("id", None)
-        enqueue.delay(self.event, self.groups, binding, {
-            "action": action,
-            "payload": self.serialize(action, {pk: data}, binding=binding),
-        }, delay=self.update_delay)
 
 
 class WebsocketView(BoundWebsocketMixin, APIView):
