@@ -41,8 +41,6 @@ def send_message(binding, packet, group=None):
     if not group:
         group = binding.get_user_group()
 
-    debug.error("sending packet: {}".format(group))
-
     get_emitter().To([group]).Emit(binding.event, {
         "events": [packet],
         "server": socket.gethostname(),
