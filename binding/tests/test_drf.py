@@ -11,7 +11,7 @@ from django.core.cache import cache
 
 from binding_test.models import Product
 
-from .. import Binding
+from ._binding import TestBinding
 from ..drf import BoundModelViewSet
 
 
@@ -28,6 +28,7 @@ class BoundModelViewsetTestCase(TestCase):
 
     def setUp(self):
         cache.clear()
+        TestBoundModelViewset.binding = TestBinding()
 
         self.t1 = Product.objects.create(name="t1", venue="store")
         self.t2 = Product.objects.create(name="t2", venue="store")

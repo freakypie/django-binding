@@ -1,10 +1,9 @@
-from websockets.utils import get_emitter
 from websockets.views import WebsocketMixin
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .tasks import enqueue
+from .tasks import send_message, send_sync
 from .binding import Binding
 
 
@@ -17,7 +16,7 @@ class WebsocketBinding(Binding):
     def get_user_group(self):
         return self.group
 
-    def serialize_message(self, action, data, binding=None):
+    def serialize_message(self, action, data):
         if action == "delete":
             return [{"id": data.id}]
         if action == "update":
@@ -25,20 +24,23 @@ class WebsocketBinding(Binding):
         return data.values()
 
     def message(self, action, data, whom=None):
-        if action == "sync":
-            print("sending sync message", action, whom, self.event, self.get_user_group())
+        if action == "ok":
+            send_message.delay(
+                self,
+                dict(action="sync", payload="ok"),
+                whom
+            )
+        elif action == "sync":
+            send_sync.delay(self, group=whom)
         else:
-            print("sending message", action, data, self.event, self.get_user_group())
-        enqueue.delay(
-            self.event,
-            [whom or self.get_user_group()],
-            self.serialize(),
-            dict(
-                action=action,
-                payload=self.serialize_message(action, data),
-            ),
-            delay=self.update_delay
-        )
+            send_message.delay(
+                self,
+                dict(
+                    action=action,
+                    payload=self.serialize_message(action, data)
+                ),
+                whom
+            )
 
 
 class BoundWebsocketMixin(WebsocketMixin):
@@ -62,9 +64,10 @@ class BoundWebsocketMixin(WebsocketMixin):
                 version = -1
 
             if not version or version != binding.version:
-                binding.message("sync", binding.all(), whom=self.socket_id)
+                binding.message("sync", None, whom=self.socket_id)
+            else:
+                binding.message("ok", None, whom=self.socket_id)
 
-            print("joining group", binding.get_user_group())
             return Response({
                 "event": "__cmd__",
                 "join": [binding.get_user_group()]

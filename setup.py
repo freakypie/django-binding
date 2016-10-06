@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='django-binding',
-    version='0.3.2',
+    version='0.4.2',
     description='Django data binding backend',
     author='John Leith',
     author_email='dev@velocitywebworks.com',

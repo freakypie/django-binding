@@ -1,26 +1,12 @@
 import sys
 import time
-import unittest
 
 from django.core.cache import cache
 from django.test import TestCase
 
 from binding_test.models import Product
 
-from .. import Binding
-
-
-class TestBinding(Binding):
-    model = Product
-    outbox = []
-
-    def message(self, action, data):
-        super(TestBinding, self).message(action, data)
-        self.outbox.append((action, data))
-
-    # not an override
-    def clearMessages(self):
-        del self.outbox[:]
+from ._binding import TestBinding
 
 
 class BindingTestCase(TestCase):
