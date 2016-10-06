@@ -53,6 +53,8 @@ class Binding(object):
 
     # no promises this will work without cache or db
     cache_name = "default"
+    meta_cache = None
+    object_cache = None
     db = True
     listeners = None
 
@@ -67,10 +69,8 @@ class Binding(object):
         self.name = name
 
         if self.cache_name:
-            self.cache = CacheDict(
-                prefix="binding1:" + self.name,
-                cache_name=self.cache_name
-            )
+            self.meta_cache = self.create_meta_cache()
+            self.object_cache = self.create_object_cache()
             self.get_or_start_version()
             self.all()
 
@@ -79,10 +79,27 @@ class Binding(object):
         self.bindings[self.model].append(self)
         # print("binding", Binding.bindings)
 
+    def create_meta_cache(self):
+        return CacheDict(
+            prefix="binding:meta:{}".format(self.name),
+            cache_name=self.cache_name
+        )
+
+    def create_object_cache(self):
+        return CacheDict(
+            prefix="binding:object:{}".format(self.model.__name__),
+            cache_name=self.cache_name
+        )
+
     def dispose(self):
         home = self.bindings.get(self.model, [])
         if self in home:
             home.remove(self)
+
+    def clear(self, objects=False):
+        self.meta_cache.clear()
+        if objects:
+            self.object_cache.clear()
 
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
@@ -105,23 +122,23 @@ class Binding(object):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
         objects.append(instance.id)
-        self.cache.set(instance.id, serialized)
-        self.cache.set("objects", objects)
+        self.object_cache.set(instance.id, serialized)
+        self.meta_cache.set("objects", objects)
         self.bump()
         self.message(created and "create" or "update", serialized)
 
     def delete_instance(self, objects, instance):
         """ called when a matching model is deleted """
         objects.remove(instance.id)
-        self.cache.expire(instance.id)
-        self.cache.set("objects", objects)
+        self.object_cache.expire(instance.id)
+        self.meta_cache.set("objects", objects)
         self.bump()
         self.message("delete", instance)
 
     def save_many_instances(self, instances):
         """ called when the binding is first attached """
-        self.cache.set_many(instances)
-        self.cache.set("objects", instances.keys())
+        self.object_cache.set_many(instances)
+        self.meta_cache.set("objects", instances.keys())
         self.bump()
 
     def model_matches(self, instance):
@@ -141,9 +158,7 @@ class Binding(object):
         return self.excludes
 
     def _get_queryset(self):
-        objects = None
-        if self.cache:
-            objects = self._get_queryset_from_cache()
+        objects = self._get_queryset_from_cache()
         if self.db and objects is None:
             objects = dict([
                 (o.id, self.serialize_object(o))
@@ -154,12 +169,12 @@ class Binding(object):
 
     @property
     def cache_key(self):
-        return self.cache.get_key("objects")
+        return self.meta_cache.get_key("objects")
 
     def _get_queryset_from_cache(self):
-        keys = self.cache.get("objects", None)
+        keys = self.meta_cache.get("objects", None)
         if keys is not None:
-            qs = self.cache.get_many(keys)
+            qs = self.object_cache.get_many(keys)
             # print("cache returned:", keys, qs)
             return qs
         return None
@@ -177,21 +192,21 @@ class Binding(object):
 
     @property
     def version(self):
-        return self.cache.get("version", None)
+        return self.meta_cache.get("version", None)
 
     def get_or_start_version(self):
-        v = self.cache.get("version")
+        v = self.meta_cache.get("version")
         if not v:
             v = 0
-            self.cache.set("version", v)
+            self.meta_cache.set("version", v)
 
-        lm = self.cache.get("last-modified")
+        lm = self.meta_cache.get("last-modified")
         if not lm:
-            self.cache.set("last-modified", timezone.now())
+            self.meta_cache.set("last-modified", timezone.now())
 
     @property
     def last_modified(self):
-        return self.cache.get("last-modified")
+        return self.meta_cache.get("last-modified")
 
     def bump(self):
         # print("\n")
@@ -200,14 +215,14 @@ class Binding(object):
         # print("*" * 20)
         # print("bumping version", self.version)
 
-        self.cache.set("last-modified", timezone.now())
+        self.meta_cache.set("last-modified", timezone.now())
         try:
-            return self.cache.incr("version")
+            return self.meta_cache.incr("version")
         except ValueError:
             # import traceback
             # traceback.print_stack()
-            # print("couldn't get version", self.cache.get("version"))
-            self.cache.set("version", 1)
+            # print("couldn't get version", self.meta_cache.get("version"))
+            self.meta_cache.set("version", 1)
             return 1
 
     def addListener(self, l):
@@ -237,4 +252,4 @@ class Binding(object):
         return self._get_queryset()
 
     def keys(self):
-        return self.cache.get("objects") or []
+        return self.meta_cache.get("objects") or []
