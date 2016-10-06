@@ -21,15 +21,16 @@ class Pending(object):
 
 @shared_task
 def enqueue(event, groups, binding, packet, delay=2):
-    ident = key(event, groups)
-    queue = Pending.queues.get(ident, [])
-    queue.append(packet)
-    Pending.queues.set(ident, queue)
-
-    timer = str(time.time())
-    Pending.queues.set(ident + ":key", timer)
-    _process_queue.apply_async(
-        (timer, event, groups, binding), countdown=delay)
+    pass
+    # ident = key(event, groups)
+    # queue = Pending.queues.get(ident, [])
+    # queue.append(packet)
+    # Pending.queues.set(ident, queue)
+    #
+    # timer = str(time.time())
+    # Pending.queues.set(ident + ":key", timer)
+    # _process_queue.apply_async(
+    #     (timer, event, groups, binding), countdown=delay)
 
 
 @shared_task
