@@ -10,7 +10,7 @@ from .binding import Binding
 class WebsocketBinding(Binding):
     update_delay = 1
     sync_delay = 0.1
-    page_size = 10
+    page_size = 25
     group = None
     event = None
 

@@ -22,8 +22,7 @@ def send_sync(binding, group=None, sleep_interval=0.01, page_size=100):
             binding,
             dict(
                 action="sync",
-                payload=binding.object_cache.get_many(
-                    keys[page * page_size: (page + 1) * page_size]).values(),
+                keys=keys[page * page_size: (page + 1) * page_size],
                 page=page + 1,
                 pages=pages
             ),
@@ -40,6 +39,12 @@ def send_message(binding, packet, group=None):
 
     if not group:
         group = binding.get_user_group()
+
+    if packet['action'] == 'sync' and packet.get('payload') != "ok":
+        # print(packet)
+        packet['payload'] = binding.object_cache.get_many(
+            packet['keys']).values()
+        del packet['keys']
 
     get_emitter().To([group]).Emit(binding.event, {
         "events": [packet],
