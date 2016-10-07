@@ -10,6 +10,7 @@ from .binding import Binding
 class WebsocketBinding(Binding):
     update_delay = 1
     sync_delay = 0.1
+    page_size = 10
     group = None
     event = None
 
@@ -31,7 +32,7 @@ class WebsocketBinding(Binding):
                 whom
             )
         elif action == "sync":
-            send_sync.delay(self, group=whom)
+            send_sync.delay(self, group=whom, page_size=self.page_size)
         else:
             send_message.delay(
                 self,
