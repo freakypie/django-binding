@@ -7,8 +7,6 @@ import math
 
 from celery import shared_task
 
-from .binding import CacheDict
-
 debug = logging.getLogger("debug")
 
 
@@ -18,11 +16,12 @@ def send_sync(binding, group=None, sleep_interval=0.01, page_size=100):
     count = len(keys)
     pages = int(math.ceil(count / float(page_size)))
     for page in range(pages):
-        send_message.delay(
+        send_message(
             binding,
             dict(
                 action="sync",
-                keys=keys[page * page_size: (page + 1) * page_size],
+                payload=binding.object_cache.get_many(
+                    keys[page * page_size: (page + 1) * page_size]).values(),
                 page=page + 1,
                 pages=pages
             ),
@@ -32,19 +31,12 @@ def send_sync(binding, group=None, sleep_interval=0.01, page_size=100):
             time.sleep(sleep_interval)
 
 
-@shared_task
 def send_message(binding, packet, group=None):
     # this should only be run if DNW is installed
     from websockets.utils import get_emitter
 
     if not group:
         group = binding.get_user_group()
-
-    if packet['action'] == 'sync' and packet.get('payload') != "ok":
-        # print(packet)
-        packet['payload'] = binding.object_cache.get_many(
-            packet['keys']).values()
-        del packet['keys']
 
     get_emitter().To([group]).Emit(binding.event, {
         "events": [packet],

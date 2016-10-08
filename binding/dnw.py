@@ -26,7 +26,7 @@ class WebsocketBinding(Binding):
 
     def message(self, action, data, whom=None):
         if action == "ok":
-            send_message.delay(
+            send_message(
                 self,
                 dict(action="sync", payload="ok"),
                 whom
@@ -34,7 +34,7 @@ class WebsocketBinding(Binding):
         elif action == "sync":
             send_sync.delay(self, group=whom, page_size=self.page_size)
         else:
-            send_message.delay(
+            send_message(
                 self,
                 dict(
                     action=action,
