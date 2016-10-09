@@ -32,6 +32,16 @@ def send_sync(binding, group=None, sleep_interval=0.01, page_size=100):
             )
             if sleep_interval:
                 time.sleep(sleep_interval)
+        time.sleep(sleep_interval)
+        send_message(
+            binding,
+            dict(
+                action="sync",
+                payload="ok",
+                pages=pages
+            ),
+            group=group
+        )
     else:
         send_message(
             binding,
