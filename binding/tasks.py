@@ -13,7 +13,7 @@ debug = logging.getLogger("debug")
 
 @shared_task
 def send_sync(binding, group=None, sleep_interval=0.01, page_size=100):
-    if cache.add("sync-{}".format(group), "x", 5 * 60):
+    if True:  # cache.add("sync-{}".format(group), 1, 5 * 60):
         keys = binding.keys()
         count = len(keys)
         pages = int(math.ceil(count / float(page_size)))
