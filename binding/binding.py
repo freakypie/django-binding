@@ -178,11 +178,17 @@ class Binding(object):
     def _get_queryset(self):
         objects = self._get_queryset_from_cache()
         if self.db and objects is None:
-            objects = dict([
-                (o.id, self.serialize_object(o))
-                for o in self._get_queryset_from_db()
-            ])
-            self.save_many_instances(objects)
+            db_objects = self._get_queryset_from_db()
+            keys = [o.id for o in db_objects]
+            objects = self.object_cache.get_many(keys)
+            new_objects = {}
+            for o in db_objects:
+                if o.id not in objects:
+                    objects[o.id] = self.serialize_object(o)
+                    new_objects[o.id] = objects[o.id]
+            self.object_cache.set_many(new_objects)
+            self.meta_cache.set("objects", objects.keys())
+            self.bump()
         return objects or {}
 
     @property

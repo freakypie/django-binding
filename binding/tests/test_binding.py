@@ -7,6 +7,26 @@ from django.test import TestCase
 from binding_test.models import Product
 
 from ._binding import TestBinding
+from ..binding import CacheDict
+
+
+class CacheDictTestCase(TestCase):
+
+    def testPatternSpeed(self):
+        a = CacheDict("a")
+        for x in range(1000):
+            a.set(x, x)
+
+        start = time.time()
+        for x in range(100):
+            a.pattern("0")
+        print("cache A:", time.time() - start)
+
+        start = time.time()
+        for x in range(100):
+            for key in a.cache.iter_keys(a.get_key("0")):
+                a.cache.get(key)
+        print("cache B:", time.time() - start)
 
 
 class BindingTestCase(TestCase):
