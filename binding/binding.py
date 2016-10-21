@@ -45,17 +45,18 @@ class CacheDict(object):
             self.cache.expire(self.get_key(name), timeout)
 
     def pattern(self, p):
-        p = self.get_key(p)
-        if getattr(self.cache, "keys", None):
-            keys = self.cache.keys(p)
-        else:
-            # if locmemcache, we can use _cache
-            p = p.strip("*")
-            keys = []
-            for key in self.cache._cache:
-                if key.startswith(p):
-                    keys.append(key)
-        return self.cache.get_many(keys).values()
+        return self.cache.get_many(self.cache.keys(self.get_key(p))).values()
+        # p = self.get_key(p)
+        # if getattr(self.cache, "keys", None):
+        #     keys = self.cache.keys(p)
+        # else:
+        #     # if locmemcache, we can use _cache
+        #     p = p.strip("*")
+        #     keys = []
+        #     for key in self.cache._cache:
+        #         if key.startswith(p):
+        #             keys.append(key)
+        # return self.cache.get_many(keys).values()
 
     def clear(self):
         self.cache.delete_pattern(self.get_key("*"))
