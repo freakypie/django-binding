@@ -46,8 +46,6 @@ def debounced_model_saved(binding, instance_id):
 @shared_task
 def send_sync(binding, group=None, sleep_interval=0.1, page_size=100):
 
-    return
-
     if cache.add("sync-{}".format(group), 1, 5 * 60):
         keys = binding.keys()
         count = len(keys)
