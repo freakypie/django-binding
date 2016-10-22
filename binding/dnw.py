@@ -8,8 +8,6 @@ from .binding import Binding
 
 
 class WebsocketBinding(Binding):
-    update_delay = 1
-    sync_delay = 0.1
     page_size = 25
     group = None
     event = None
@@ -24,7 +22,7 @@ class WebsocketBinding(Binding):
             return [data]
         return data.values()
 
-    def message(self, action, data, whom=None):
+    def message(self, action, data, page=None, whom=None):
         if action == "ok":
             send_message(
                 self,
@@ -34,9 +32,9 @@ class WebsocketBinding(Binding):
         elif action == "sync":
             send_sync.delay(
                 self,
+                page=page,
                 group=whom,
-                page_size=self.page_size,
-                sleep_interval=self.sync_delay)
+                page_size=self.page_size)
         else:
             send_message(
                 self,
@@ -64,12 +62,16 @@ class BoundWebsocketMixin(WebsocketMixin):
             })
         else:
             try:
+                page = int(self.data.get("page"))
+            except (TypeError, ValueError):
+                page = None
+            try:
                 version = int(self.data.get("version"))
             except (TypeError, ValueError):
                 version = -1
 
-            if not version or version != binding.version:
-                binding.message("sync", None, whom=self.socket_id)
+            if page or not version or version != binding.version:
+                binding.message("sync", None, page=page, whom=self.socket_id)
             else:
                 binding.message("ok", None, whom=self.socket_id)
 

@@ -260,7 +260,7 @@ class Binding(object):
             self.meta_cache.set("version", 1)
             return 1
 
-    def message(self, action, data):
+    def message(self, action, data, **kwargs):
         pass
 
     def serialize_object(self, obj):

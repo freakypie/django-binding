@@ -7,6 +7,7 @@ import time
 
 from celery import shared_task
 from django.core.cache import cache
+from .listeners import get_bindings
 
 debug = logging.getLogger("debug")
 
@@ -25,52 +26,53 @@ def debounce(timeout=0.5, key=debounce_key, kwargs_key="_ident"):
             _key = "debounce:{}".format(key(*args, **kwargs))
             if kwargs_key not in kwargs:
                 kwargs[kwargs_key] = str(time.time())
-                cache.set(_key, kwargs[kwargs_key], timeout=timeout*2)
+                cache.set(_key, kwargs[kwargs_key], timeout=timeout)
+                debug.info("debouncing: %s %s", function.__name__, kwargs[kwargs_key])
                 inner.apply_async(args, kwargs, countdown=timeout)
-            elif cache.get(_key) == kwargs.get(kwargs_key):
+            elif cache.get(_key) in [None, kwargs.get(kwargs_key)]:
                 kwargs.pop(kwargs_key)
+                debug.info("running: %s", function.__name__)
                 function(*args, **kwargs)
+                cache.delete(_key)
+            else:
+                debug.info("debounced: %s %s!=%s", function.__name__, cache.get(_key), kwargs.get(kwargs_key))
         return inner
     return outer
 
 
-def debounced_model_saved_key(binding, instance_id, **kwargs):
-    return "{}:{}".format(binding.name, instance_id)
+def model_saved_key(sender, instance_id, **kwargs):
+    return "{}:{}".format(sender.__name__, instance_id)
 
 
-@debounce(timeout=1.0, key=debounced_model_saved_key)
-def debounced_model_saved(binding, instance_id):
-    binding.model_saved(instance=binding.model.objects.get(id=instance_id))
+@debounce(timeout=0.5, key=model_saved_key)
+def model_saved(sender, instance_id):
+    instance = sender.objects.get(id=instance_id)
+    for binding in get_bindings(sender):
+        binding.model_saved(sender=sender, instance=instance)
 
 
-@shared_task
-def send_sync(binding, group=None, sleep_interval=0.1, page_size=100):
+def send_sync_key(binding, group=None, **kwargs):
+    return "sync-{}".format(group)
 
-    if cache.add("sync-{}".format(group), 1, 5 * 60):
-        keys = binding.keys()
-        count = len(keys)
-        pages = int(math.ceil(count / float(page_size)))
-        for page in range(pages):
-            send_message(
-                binding,
-                dict(
-                    action="sync",
-                    payload=binding.object_cache.get_many(
-                        keys[page * page_size: (page + 1) * page_size]
-                    ).values(),
-                    page=page + 1,
-                    pages=pages
-                ),
-                group=group
-            )
-            if sleep_interval:
-                time.sleep(sleep_interval)
-        time.sleep(sleep_interval)
+
+@debounce(timeout=0.5, key=send_sync_key)
+def send_sync(binding, group=None, page=1, sleep_interval=0.1, page_size=100):
+    if not page:
+        page = 1
+    keys = binding.keys()
+    count = len(keys)
+    pages = int(math.ceil(count / float(page_size)))
+    page = page - 1
+    debug.info("sending page: {}".format(page))
+    if page < pages:
         send_message(
             binding,
             dict(
                 action="sync",
-                payload="ok",
+                payload=binding.object_cache.get_many(
+                    keys[page * page_size: (page + 1) * page_size]
+                ).values(),
+                page=page + 1,
                 pages=pages
             ),
             group=group
@@ -80,7 +82,8 @@ def send_sync(binding, group=None, sleep_interval=0.1, page_size=100):
             binding,
             dict(
                 action="sync",
-                payload="ok"
+                payload="ok",
+                pages=pages
             ),
             group=group
         )
