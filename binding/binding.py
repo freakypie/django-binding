@@ -149,9 +149,10 @@ class Binding(object):
     def save_instance(self, objects, instance, created):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
-        objects.append(instance.id)
+        if instance.id not in objects:
+            objects.append(instance.id)
         self.object_cache.set(instance.id, serialized)
-        self.meta_cache.set("objects", objects)
+        self.meta_cache.set("objects", list(set(objects)))
         self.bump()
         self.message(created and "create" or "update", serialized)
 
