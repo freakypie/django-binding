@@ -159,7 +159,7 @@ class Binding(object):
     def delete_instance(self, objects, instance):
         """ called when a matching model is deleted """
         objects.remove(instance.id)
-        self.object_cache.expire(instance.id)
+        # self.object_cache.expire(instance.id)
         self.meta_cache.set("objects", objects)
         self.bump()
         self.message("delete", instance)
