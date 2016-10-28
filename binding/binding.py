@@ -225,8 +225,11 @@ class Binding(object):
             return qs
         return None
 
+    def get_queryset(self):
+        return self.model.objects.filter(*self.get_q(), **self.get_filters())
+
     def _get_queryset_from_db(self):
-        qs = self.model.objects.filter(*self.get_q(), **self.get_filters())
+        qs = self.get_queryset()
         excludes = self.get_excludes()
         if excludes:
             qs = qs.exclude(**excludes)
