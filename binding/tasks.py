@@ -63,20 +63,38 @@ def send_sync(binding, group=None, page=1, sleep_interval=0.1, page_size=100):
     count = len(keys)
     pages = int(math.ceil(count / float(page_size)))
     page = page - 1
-    debug.info("sending page: {}".format(page))
+    debug.info("sending page: {}/{}".format(page, pages))
     if page < pages:
-        send_message(
-            binding,
-            dict(
-                action="sync",
-                payload=binding.object_cache.get_many(
-                    keys[page * page_size: (page + 1) * page_size]
-                ).values(),
-                page=page + 1,
-                pages=pages
-            ),
-            group=group
-        )
+        page_keys = keys[page * page_size: (page + 1) * page_size]
+        page_objects = binding.object_cache.get_many(page_keys)
+
+        try:
+            send_message(
+                binding,
+                dict(
+                    action="sync",
+                    payload=page_objects.values(),
+                    page=page + 1,
+                    pages=pages
+                ),
+                group=group
+            )
+        except TypeError:
+            # if msgpack throws a type error, something is not json`able
+            # clear objects force them to recache
+            page_objects = []
+
+        # fix missing objects
+        # in case the cache is damaged
+        for key in page_keys:
+            if key not in page_objects:
+                debug.error("key missing %s", key)
+                obj = binding.model.objects.get(pk=key)
+                if binding.model_matches(obj):
+                    binding.save_instance(keys, obj, False)
+                else:
+                    binding.delete_instance(keys, obj)
+
     else:
         send_message(
             binding,

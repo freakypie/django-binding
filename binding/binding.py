@@ -74,6 +74,16 @@ class Binding(object):
     db = True
 
     @classmethod
+    def clear_all(self):
+        self.reset_all()
+        Binding.bindings.clear()
+
+    @classmethod
+    def reset_all(self):
+        for binding in Binding.bindings.pattern("*"):
+            binding.clear()
+
+    @classmethod
     def get(self, model, name):
         return self.bindings.get(
             "{}:{}".format(model.__name__, name))
@@ -115,7 +125,8 @@ class Binding(object):
 
     def create_object_cache(self):
         return CacheDict(
-            prefix="binding:object:{}".format(self.model.__name__),
+            prefix="binding:object:{}".format(
+                self.model.__name__),
             cache_name=self.cache_name
         )
 
