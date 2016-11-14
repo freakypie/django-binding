@@ -1,3 +1,7 @@
+from __future__ import print_function
+
+import time
+
 from django.core.cache import get_cache
 from django.utils import timezone
 
@@ -196,6 +200,27 @@ class Binding(object):
 
     def get_excludes(self):
         return self.excludes
+
+    def refresh(self, timeout=0):
+        db_objects = self._get_queryset_from_db()
+        objects = self.meta_cache.get("objects")
+        remove_these = set(objects) - set([o.pk for o in db_objects])
+        added = removed = 0
+
+        # ensure that all objects are in the list that should be
+        for obj in db_objects:
+            if obj.pk not in objects:
+                self.save_instance(objects, obj, False)
+                added += 1
+                if timeout: time.sleep(timeout)
+
+        # remove objects from the list that shouldn't be
+        for pk in remove_these:
+            obj = self.model.objects.get(pk=pk)
+            self.delete_instance(objects, obj)
+            removed += 1
+            if timeout: time.sleep(timeout)
+        return added, removed
 
     def _get_queryset(self):
         objects = self._get_queryset_from_cache()

@@ -19,7 +19,7 @@ def debounce_key(*args, **kwargs):
 def debounce(timeout=0.5, key=debounce_key, kwargs_key="_ident"):
 
     def outer(function):
-        debug.info("debouncing function: %s", function)
+        # debug.debug("debouncing function: %s", function)
 
         @shared_task(name=function.__name__)
         def inner(*args, **kwargs):
@@ -27,15 +27,15 @@ def debounce(timeout=0.5, key=debounce_key, kwargs_key="_ident"):
             if kwargs_key not in kwargs:
                 kwargs[kwargs_key] = str(time.time())
                 cache.set(_key, kwargs[kwargs_key], timeout=timeout)
-                debug.info("debouncing: %s %s", function.__name__, kwargs[kwargs_key])
+                # debug.debug("debouncing: %s %s", function.__name__, kwargs[kwargs_key])
                 inner.apply_async(args, kwargs, countdown=timeout)
             elif cache.get(_key) in [None, kwargs.get(kwargs_key)]:
                 kwargs.pop(kwargs_key)
-                debug.info("running: %s", function.__name__)
+                # debug.info("running: %s", function.__name__)
                 function(*args, **kwargs)
                 cache.delete(_key)
-            else:
-                debug.info("debounced: %s %s!=%s", function.__name__, cache.get(_key), kwargs.get(kwargs_key))
+            # else:
+                # debug.debug("debounced: %s %s!=%s", function.__name__, cache.get(_key), kwargs.get(kwargs_key))
         return inner
     return outer
 
