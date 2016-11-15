@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='django-binding',
-    version='0.6.5',
+    version='0.6.6',
     description='Django data binding backend',
     author='John Leith',
     author_email='dev@velocitywebworks.com',
-    packages=['binding'],
+    packages=find_packages(),
 )
