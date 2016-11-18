@@ -216,7 +216,10 @@ class Binding(object):
 
         # remove objects from the list that shouldn't be
         for pk in remove_these:
-            obj = self.model.objects.get(pk=pk)
+            try:
+                obj = self.model.objects.get(pk=pk)
+            except self.model.DoesNotExist:
+                obj = self.model(pk=pk)
             self.delete_instance(objects, obj)
             removed += 1
             if timeout: time.sleep(timeout)

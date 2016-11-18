@@ -89,10 +89,14 @@ def send_sync(binding, group=None, page=1, sleep_interval=0.1, page_size=100):
         for key in page_keys:
             if key not in page_objects:
                 debug.error("key missing %s", key)
-                obj = binding.model.objects.get(pk=key)
-                if binding.model_matches(obj):
-                    binding.save_instance(keys, obj, False)
-                else:
+                try:
+                    obj = binding.model.objects.get(pk=key)
+                    if binding.model_matches(obj):
+                        binding.save_instance(keys, obj, False)
+                    else:
+                        binding.delete_instance(keys, obj)
+                except binding.model.DoesNotExist:
+                    obj = binding.model(pk=key)
                     binding.delete_instance(keys, obj)
 
     else:
