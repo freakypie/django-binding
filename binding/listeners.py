@@ -16,10 +16,8 @@ def get_bindings(model):
 
 
 def model_saved(sender=None, instance=None, **kwargs):
-    # print("model saved", instance)
     for binding in get_bindings(sender):
         binding.model_saved(sender=sender, instance=instance, **kwargs)
-        # print("{}:{} saved".format(sender, instance), binding)
 
 
 def model_deleted(sender=None, instance=None, **kwargs):

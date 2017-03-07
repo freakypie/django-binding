@@ -88,7 +88,7 @@ class CacheArray(CacheBase):
         members = self.con.smembers(self.array_key)
         for key in members:
             self.cache.delete(key)
-            self.con.srem(key)
+            self.con.srem(self.array_key, key)
 
 
 class Binding(object):
@@ -110,7 +110,7 @@ class Binding(object):
 
     @classmethod
     def reset_all(self):
-        for binding in Binding.bindings.pattern("*"):
+        for binding in Binding.bindings.members():
             binding.clear()
 
     @classmethod
@@ -145,6 +145,7 @@ class Binding(object):
         self.register()
 
     def register(self):
+        print("registered", self.bindings_key, self.name)
         self.bindings.add(self.bindings_key, self)
 
     def create_meta_cache(self):
