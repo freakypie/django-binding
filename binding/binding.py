@@ -145,7 +145,6 @@ class Binding(object):
         self.register()
 
     def register(self):
-        print("registered", self.bindings_key, self.name)
         self.bindings.add(self.bindings_key, self)
 
     def create_meta_cache(self):
