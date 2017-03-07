@@ -7,26 +7,42 @@ from django.test import TestCase
 from binding_test.models import Product
 
 from ._binding import TestBinding
-from ..binding import CacheDict
+from ..binding import CacheDict, CacheArray
 
 
 class CacheDictTestCase(TestCase):
 
     def testPatternSpeed(self):
         a = CacheDict("a")
-        for x in range(1000):
+        b = CacheArray("b")
+
+        # when there are a lot of unrelated keys:
+        # slow slow slow
+        for x in range(20000):
+            cache.set("c:{}".format(x), x)
+
+        for x in range(100):
             a.set(x, x)
+            b.add(x, x)
 
         start = time.time()
-        for x in range(100):
-            a.pattern("0")
+        for x in range(1):
+            a.pattern("11*")
         print("cache A:", time.time() - start)
 
         start = time.time()
-        for x in range(100):
-            for key in a.cache.iter_keys(a.get_key("0")):
-                a.cache.get(key)
+        for x in range(1):
+            b.members("11")
         print("cache B:", time.time() - start)
+
+        start = time.time()
+        for x in range(1):
+            [
+                a.cache.get(key)
+                for key in a.cache.iter_keys(a.get_key("11*"))
+            ]
+        print("cache C:", time.time() - start)
+
 
 
 class BindingTestCase(TestCase):
@@ -37,6 +53,7 @@ class BindingTestCase(TestCase):
         self.t2 = Product.objects.create(name="t2", venue="store")
         self.t3 = Product.objects.create(name="t3", venue="online")
 
+        TestBinding.bindings.clear()
         self.binding = TestBinding()
         self.binding.clearMessages()
 

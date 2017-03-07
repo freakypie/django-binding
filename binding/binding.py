@@ -1,14 +1,14 @@
 from django.core.cache import get_cache
 from django.utils import timezone
+from django_redis import get_redis_connection
 
 
-class CacheDict(object):
+class CacheBase(object):
 
     def __init__(self, prefix, cache_name="default", timeout=None):
         self.prefix = prefix
         self.cache = get_cache(cache_name)
         self.timeout = timeout
-        self.hasExpire = getattr(self.cache, "expire", None)
 
     def get_key(self, name):
         return "{}:{}".format(self.prefix, name)
@@ -18,6 +18,12 @@ class CacheDict(object):
 
     def get(self, name, default=None):
         return self.cache.get(self.get_key(name), default)
+
+    def set(self, name, value, timeout=None):
+        self.cache.set(self.get_key(name), value, timeout or self.timeout)
+
+
+class CacheDict(CacheBase):
 
     def get_many(self, keys, default=None):
         many = self.cache.get_many([
@@ -34,35 +40,55 @@ class CacheDict(object):
             sending[self.get_key(key)] = value
         self.cache.set_many(sending, timeout)
 
-    def set(self, name, value, timeout=None):
-        self.cache.set(self.get_key(name), value, timeout or self.timeout)
-
     def incr(self, name, amount=1):
         self.cache.incr(self.get_key(name), 1, self.timeout)
 
     def expire(self, name, timeout=0):
-        if self.hasExpire:
-            self.cache.expire(self.get_key(name), timeout)
-
-    def pattern(self, p):
-        p = self.get_key(p)
-        if getattr(self.cache, "keys", None):
-            keys = self.cache.keys(p)
-        else:
-            # if locmemcache, we can use _cache
-            p = p.strip("*")
-            keys = []
-            for key in self.cache._cache:
-                if key.startswith(p):
-                    keys.append(key)
-        return self.cache.get_many(keys).values()
+        self.cache.expire(self.get_key(name), timeout)
 
     def clear(self):
         self.cache.delete_pattern(self.get_key("*"))
 
+    def pattern(self, p):
+        p = self.get_key(p)
+        keys = self.cache.keys(p)
+        return self.cache.get_many(keys).values()
+
+
+class CacheArray(CacheBase):
+
+    def __init__(self, prefix, cache_name="default", timeout=None):
+        super(CacheArray, self).__init__(prefix, cache_name, timeout)
+        self.con = get_redis_connection(cache_name)
+        self.array_key = self.get_key("set")
+
+    def add(self, key, value, timeout=None):
+        key = self.get_key(key)
+        self.con.sadd(self.array_key, key)
+        self.cache.set(key, value)
+
+    def remove(self, key, value):
+        key = self.get_key(key)
+        self.con.srem(self.array_key, key)
+        self.cache.delete(key)
+
+    def members(self, prefix=""):
+        if prefix:
+            prefix = self.get_key(prefix)
+        members = self.con.smembers(self.array_key)
+        retval = self.cache.get_many(
+            [m for m in members if m.startswith(prefix)]).values()
+        return retval
+
+    def clear(self):
+        members = self.con.smembers(self.array_key)
+        for key in members:
+            self.cache.delete(key)
+            self.con.srem(key)
+
 
 class Binding(object):
-    bindings = CacheDict("binding-list")
+    bindings = CacheArray("binding-list")
     model = None
     filters = {}
     excludes = None
@@ -105,7 +131,7 @@ class Binding(object):
         self.register()
 
     def register(self):
-        self.bindings.set(self.bindings_key, self, 60 * 60 * 24)
+        self.bindings.add(self.bindings_key, self)
 
     def create_meta_cache(self):
         return CacheDict(
@@ -132,7 +158,6 @@ class Binding(object):
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
         objects = self.keys()
-        # print("model saved", instance)
         if self.model_matches(instance):
             self.save_instance(objects, instance, created)
         elif instance.id in objects:

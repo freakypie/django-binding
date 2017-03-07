@@ -12,7 +12,7 @@ from .binding import Binding
 
 
 def get_bindings(model):
-    return Binding.bindings.pattern(model.__name__ + ":*") or []
+    return Binding.bindings.members(model.__name__ + ":") or []
 
 
 def model_saved(sender=None, instance=None, **kwargs):
