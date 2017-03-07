@@ -1,3 +1,7 @@
+from __future__ import print_function
+
+import time
+
 from django.core.cache import get_cache
 from django.utils import timezone
 from django_redis import get_redis_connection
@@ -100,6 +104,16 @@ class Binding(object):
     db = True
 
     @classmethod
+    def clear_all(self):
+        self.reset_all()
+        Binding.bindings.clear()
+
+    @classmethod
+    def reset_all(self):
+        for binding in Binding.bindings.pattern("*"):
+            binding.clear()
+
+    @classmethod
     def get(self, model, name):
         return self.bindings.get(
             "{}:{}".format(model.__name__, name))
@@ -141,7 +155,8 @@ class Binding(object):
 
     def create_object_cache(self):
         return CacheDict(
-            prefix="binding:object:{}".format(self.model.__name__),
+            prefix="binding:object:{}".format(
+                self.model.__name__),
             cache_name=self.cache_name
         )
 
@@ -184,7 +199,7 @@ class Binding(object):
     def delete_instance(self, objects, instance):
         """ called when a matching model is deleted """
         objects.remove(instance.id)
-        self.object_cache.expire(instance.id)
+        # self.object_cache.expire(instance.id)
         self.meta_cache.set("objects", objects)
         self.bump()
         self.message("delete", instance)
@@ -210,6 +225,30 @@ class Binding(object):
 
     def get_excludes(self):
         return self.excludes
+
+    def refresh(self, timeout=0):
+        db_objects = self._get_queryset_from_db()
+        objects = self.meta_cache.get("objects")
+        remove_these = set(objects) - set([o.pk for o in db_objects])
+        added = removed = 0
+
+        # ensure that all objects are in the list that should be
+        for obj in db_objects:
+            if obj.pk not in objects:
+                self.save_instance(objects, obj, False)
+                added += 1
+                if timeout: time.sleep(timeout)
+
+        # remove objects from the list that shouldn't be
+        for pk in remove_these:
+            try:
+                obj = self.model.objects.get(pk=pk)
+            except self.model.DoesNotExist:
+                obj = self.model(pk=pk)
+            self.delete_instance(objects, obj)
+            removed += 1
+            if timeout: time.sleep(timeout)
+        return added, removed
 
     def _get_queryset(self):
         objects = self._get_queryset_from_cache()
@@ -239,8 +278,11 @@ class Binding(object):
             return qs
         return None
 
+    def get_queryset(self):
+        return self.model.objects.filter(*self.get_q(), **self.get_filters())
+
     def _get_queryset_from_db(self):
-        qs = self.model.objects.filter(*self.get_q(), **self.get_filters())
+        qs = self.get_queryset()
         excludes = self.get_excludes()
         if excludes:
             qs = qs.exclude(**excludes)

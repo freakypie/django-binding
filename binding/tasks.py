@@ -19,7 +19,7 @@ def debounce_key(*args, **kwargs):
 def debounce(timeout=0.5, key=debounce_key, kwargs_key="_ident"):
 
     def outer(function):
-        debug.info("debouncing function: %s", function)
+        # debug.debug("debouncing function: %s", function)
 
         @shared_task(name=function.__name__)
         def inner(*args, **kwargs):
@@ -27,15 +27,15 @@ def debounce(timeout=0.5, key=debounce_key, kwargs_key="_ident"):
             if kwargs_key not in kwargs:
                 kwargs[kwargs_key] = str(time.time())
                 cache.set(_key, kwargs[kwargs_key], timeout=timeout)
-                debug.info("debouncing: %s %s", function.__name__, kwargs[kwargs_key])
+                # debug.debug("debouncing: %s %s", function.__name__, kwargs[kwargs_key])
                 inner.apply_async(args, kwargs, countdown=timeout)
             elif cache.get(_key) in [None, kwargs.get(kwargs_key)]:
                 kwargs.pop(kwargs_key)
-                debug.info("running: %s", function.__name__)
+                # debug.info("running: %s", function.__name__)
                 function(*args, **kwargs)
                 cache.delete(_key)
-            else:
-                debug.info("debounced: %s %s!=%s", function.__name__, cache.get(_key), kwargs.get(kwargs_key))
+            # else:
+                # debug.debug("debounced: %s %s!=%s", function.__name__, cache.get(_key), kwargs.get(kwargs_key))
         return inner
     return outer
 
@@ -63,20 +63,42 @@ def send_sync(binding, group=None, page=1, sleep_interval=0.1, page_size=100):
     count = len(keys)
     pages = int(math.ceil(count / float(page_size)))
     page = page - 1
-    debug.info("sending page: {}".format(page))
+    debug.info("sending page: {}/{}".format(page, pages))
     if page < pages:
-        send_message(
-            binding,
-            dict(
-                action="sync",
-                payload=binding.object_cache.get_many(
-                    keys[page * page_size: (page + 1) * page_size]
-                ).values(),
-                page=page + 1,
-                pages=pages
-            ),
-            group=group
-        )
+        page_keys = keys[page * page_size: (page + 1) * page_size]
+        page_objects = binding.object_cache.get_many(page_keys)
+
+        try:
+            send_message(
+                binding,
+                dict(
+                    action="sync",
+                    payload=page_objects.values(),
+                    page=page + 1,
+                    pages=pages
+                ),
+                group=group
+            )
+        except TypeError:
+            # if msgpack throws a type error, something is not json`able
+            # clear objects force them to recache
+            page_objects = []
+
+        # fix missing objects
+        # in case the cache is damaged
+        for key in page_keys:
+            if key not in page_objects:
+                debug.error("key missing %s", key)
+                try:
+                    obj = binding.model.objects.get(pk=key)
+                    if binding.model_matches(obj):
+                        binding.save_instance(keys, obj, False)
+                    else:
+                        binding.delete_instance(keys, obj)
+                except binding.model.DoesNotExist:
+                    obj = binding.model(pk=key)
+                    binding.delete_instance(keys, obj)
+
     else:
         send_message(
             binding,
