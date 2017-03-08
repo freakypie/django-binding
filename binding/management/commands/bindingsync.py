@@ -6,7 +6,7 @@ class Command(BaseCommand):
     help = 'Resets all the bindings and send out new versions'
 
     def handle(self, *args, **options):
-        for binding in Binding.bindings.pattern("*"):
+        for binding in Binding.bindings.members():
             self.stdout.write(" - {}".format(binding.name))
             binding.refresh()
         self.stdout.write(self.style.NOTICE('done.'))
