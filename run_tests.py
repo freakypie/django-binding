@@ -41,7 +41,7 @@ settings.configure(
 )
 
 django.setup()
-test_runner = DiscoverRunner(verbosity=1, failfast=True)
+test_runner = DiscoverRunner(verbosity=1, failfast=False)
 
 failures = test_runner.run_tests(['binding'])
 if failures:

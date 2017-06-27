@@ -44,7 +44,6 @@ class CacheDictTestCase(TestCase):
         print("cache C:", time.time() - start)
 
 
-
 class BindingTestCase(TestCase):
 
     def setUp(self):
@@ -54,6 +53,7 @@ class BindingTestCase(TestCase):
         self.t3 = Product.objects.create(name="t3", venue="online")
 
         TestBinding.bindings.clear()
+
         self.binding = TestBinding()
         self.binding.clearMessages()
 
@@ -127,7 +127,7 @@ class BindingTestCase(TestCase):
 
     def testFilteredInitialPayload(self):
         # filter `all`
-        self.binding.filters = dict(venue="store")
+        self.binding.filters["venue"] = "store"
         self.binding.clear()
         dataset = self.binding.all()
         for item in [self.t1, self.t2]:
@@ -136,10 +136,10 @@ class BindingTestCase(TestCase):
         self.assertEqual(self.binding.version, 1)
 
     def testFilteredAdd(self):
-        self.binding.filters = dict(venue="store")
-        self.binding.register()
+        self.binding.filters["venue"] = "store"
+        self.binding.bindings.add(
+            self.binding.bindings_key, self.binding)
         self.binding.clear()
-        self.binding.all()
 
         self.assertEqual(len(self.binding.outbox), 0)
 
@@ -153,6 +153,8 @@ class BindingTestCase(TestCase):
 
     def testFilteredChange(self):
         self.binding.filters = dict(venue="store")
+        self.binding.bindings.add(
+            self.binding.bindings_key, self.binding)
         self.binding.register()
         self.binding.clear()
         self.binding.all()
@@ -173,7 +175,8 @@ class BindingTestCase(TestCase):
 
         # delete object that the binding should ignore
         self.binding.filters = dict(venue="store")
-        self.binding.register()
+        self.binding.bindings.add(
+            self.binding.bindings_key, self.binding)
         self.binding.clear()
         self.binding.all()
 
@@ -190,7 +193,8 @@ class BindingTestCase(TestCase):
     def testFilteredin(self):
         # delete object that the binding should ignore
         self.binding.filters = dict(venue="store")
-        self.binding.register()
+        self.binding.bindings.add(
+            self.binding.bindings_key, self.binding)
         self.binding.clear()
         self.binding.all()
 
@@ -209,7 +213,8 @@ class BindingTestCase(TestCase):
     def testFilteredOut(self):
         # delete object that the binding should ignore
         self.binding.filters = dict(venue="store")
-        self.binding.register()
+        self.binding.bindings.add(
+            self.binding.bindings_key, self.binding)
         self.binding.clear()
         self.binding.all()
 

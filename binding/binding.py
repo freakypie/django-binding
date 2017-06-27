@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import time
 
-from django.core.cache import get_cache
+from django.core.cache import caches
 from django.utils import timezone
 from django_redis import get_redis_connection
 
@@ -11,7 +11,7 @@ class CacheBase(object):
 
     def __init__(self, prefix, cache_name="default", timeout=None):
         self.prefix = prefix
-        self.cache = get_cache(cache_name)
+        self.cache = caches[cache_name]
         self.timeout = timeout
 
     def get_key(self, name):
@@ -94,7 +94,7 @@ class CacheArray(CacheBase):
 class Binding(object):
     bindings = CacheArray("binding-list")
     model = None
-    filters = {}
+    filters = None
     excludes = None
 
     # no promises this will work without cache or db
@@ -131,7 +131,8 @@ class Binding(object):
         self.object_cache = self.create_object_cache()
 
     def __init__(self, model=None, name=None):
-
+        if not self.filters:
+            self.filters = {}
         if model:
             self.model = model
         if not name:
@@ -145,7 +146,9 @@ class Binding(object):
         self.register()
 
     def register(self):
-        self.bindings.add(self.bindings_key, self)
+        if len(self.bindings.members(self.bindings_key)) == 0:
+            self.bindings.add(self.bindings_key, self)
+            self.refresh()
 
     def create_meta_cache(self):
         return CacheDict(
@@ -262,7 +265,7 @@ class Binding(object):
                     objects[o.id] = self.serialize_object(o)
                     new_objects[o.id] = objects[o.id]
             self.object_cache.set_many(new_objects)
-            self.meta_cache.set("objects", objects.keys())
+            self.meta_cache.set("objects", list(objects.keys()))
             self.bump()
         return objects or {}
 
@@ -279,13 +282,14 @@ class Binding(object):
         return None
 
     def get_queryset(self):
-        return self.model.objects.filter(*self.get_q(), **self.get_filters())
-
-    def _get_queryset_from_db(self):
-        qs = self.get_queryset()
+        qs = self.model.objects.filter(*self.get_q(), **self.get_filters())
         excludes = self.get_excludes()
         if excludes:
             qs = qs.exclude(**excludes)
+        return qs
+
+    def _get_queryset_from_db(self):
+        qs = self.get_queryset()
         # print(
         #     "getting from db:", self.cache_key, qs, "filters",
         #     self.get_filters(), self.get_excludes()
