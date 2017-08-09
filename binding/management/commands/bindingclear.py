@@ -6,5 +6,5 @@ class Command(BaseCommand):
     help = 'Resets all the bindings and send out new versions'
 
     def handle(self, *args, **options):
-        Binding.clear_all()
+        Binding.clear_all(True)
         self.stdout.write(self.style.NOTICE('done.'))

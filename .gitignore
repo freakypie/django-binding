@@ -4,3 +4,5 @@ MANIFEST
 *.pyc
 __pycache__
 *.egg-info
+.vscode
+tags

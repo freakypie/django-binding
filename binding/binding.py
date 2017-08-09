@@ -69,9 +69,9 @@ class CacheArray(CacheBase):
     def add(self, key, value, timeout=None):
         key = self.get_key(key)
         self.con.sadd(self.array_key, key)
-        self.cache.set(key, value)
+        self.cache.set(key, value, timeout=timeout or self.timeout)
 
-    def remove(self, key, value):
+    def remove(self, key):
         key = self.get_key(key)
         self.con.srem(self.array_key, key)
         self.cache.delete(key)
@@ -80,8 +80,13 @@ class CacheArray(CacheBase):
         if prefix:
             prefix = self.get_key(prefix)
         members = self.con.smembers(self.array_key)
-        retval = self.cache.get_many(
-            [m for m in members if m.startswith(prefix)]).values()
+        keys = [m for m in members if m.startswith(prefix)]
+        retval = self.cache.get_many(keys).values()
+
+        # extend key life
+        for key in keys:
+            self.cache.expire(key, self.timeout)
+
         return retval
 
     def clear(self):
@@ -92,7 +97,7 @@ class CacheArray(CacheBase):
 
 
 class Binding(object):
-    bindings = CacheArray("binding-list")
+    bindings = CacheArray("binding-list", timeout=4 * 60 * 60)
     model = None
     filters = None
     excludes = None
@@ -104,14 +109,14 @@ class Binding(object):
     db = True
 
     @classmethod
-    def clear_all(self):
-        self.reset_all()
+    def clear_all(self, objects=False):
+        self.reset_all(objects)
         Binding.bindings.clear()
 
     @classmethod
-    def reset_all(self):
+    def reset_all(self, objects=False):
         for binding in Binding.bindings.members():
-            binding.clear()
+            binding.clear(objects)
 
     @classmethod
     def get(self, model, name):
