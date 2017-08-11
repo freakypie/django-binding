@@ -84,8 +84,8 @@ class CacheArray(CacheBase):
         retval = self.cache.get_many(keys).values()
 
         # extend key life
-        for key in keys:
-            self.cache.expire(key, self.timeout)
+        # for key in keys:
+        #     self.cache.expire(key, self.timeout)
 
         return retval
 
