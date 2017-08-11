@@ -107,6 +107,7 @@ class Binding(object):
     meta_cache = None
     object_cache = None
     db = True
+    _version = None
 
     @classmethod
     def clear_all(self, objects=False):
@@ -125,7 +126,7 @@ class Binding(object):
 
     def __getstate__(self):
         odict = self.__dict__.copy()
-        for key in ['bindings', 'meta_cache', 'object_cache']:
+        for key in ['_version', 'bindings', 'meta_cache', 'object_cache']:
             if key in odict:
                 del odict[key]
         return odict
@@ -245,7 +246,8 @@ class Binding(object):
             if obj.pk not in objects:
                 self.save_instance(objects, obj, False)
                 added += 1
-                if timeout: time.sleep(timeout)
+                if timeout:
+                    time.sleep(timeout)
 
         # remove objects from the list that shouldn't be
         for pk in remove_these:
@@ -255,7 +257,8 @@ class Binding(object):
                 obj = self.model(pk=pk)
             self.delete_instance(objects, obj)
             removed += 1
-            if timeout: time.sleep(timeout)
+            if timeout:
+                time.sleep(timeout)
         return added, removed
 
     def _get_queryset(self):
@@ -303,16 +306,19 @@ class Binding(object):
 
     @property
     def version(self):
-        return self.meta_cache.get("version", None)
+        if not self._version:
+            self._version = self.meta_cache.get("version", None)
+        return self._version
 
     def get_or_start_version(self):
-        v = self.meta_cache.get("version")
+        v = self.version
         if not v:
             v = 0
             self.meta_cache.set("version", v)
+            self._version = None
             self.all()
 
-        lm = self.meta_cache.get("last-modified")
+        lm = self.last_modified
         if not lm:
             self.meta_cache.set("last-modified", timezone.now())
 
@@ -328,6 +334,7 @@ class Binding(object):
         # print("bumping version", self.version)
 
         self.meta_cache.set("last-modified", timezone.now())
+        self._version = None
         try:
             return self.meta_cache.incr("version")
         except ValueError:
