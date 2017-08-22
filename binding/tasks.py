@@ -55,15 +55,16 @@ def send_sync_key(binding, group=None, **kwargs):
     return "sync-{}".format(group)
 
 
-@debounce(timeout=0.5, key=send_sync_key)
-def send_sync(binding, group=None, page=1, sleep_interval=0.1, page_size=100):
+# @debounce(timeout=0.1, key=send_sync_key)
+@shared_task()
+def send_sync(binding, group=None, page=1, page_size=100):
     if not page:
         page = 1
     keys = binding.keys()
     count = len(keys)
     pages = int(math.ceil(count / float(page_size)))
     page = page - 1
-    debug.info("sending page: {}/{}".format(page, pages))
+    debug.info("sending page: {}/{}".format(page + 1, pages))
     if page < pages:
         page_keys = keys[page * page_size: (page + 1) * page_size]
         page_objects = binding.object_cache.get_many(page_keys)
