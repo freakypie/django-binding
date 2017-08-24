@@ -114,17 +114,22 @@ def send_sync(binding, group=None, page=1, page_size=100):
 
 def send_message(binding, packet, group=None):
     # this should only be run if DNW is installed
-    from websockets.utils import get_emitter
 
     if not group:
         group = binding.get_user_group()
 
-    get_emitter().To([group]).Emit(binding.event, {
+    data = {
         "events": [packet],
         "server": socket.gethostname(),
         "binding": binding.name,
         "version": binding.version,
         "last-modified": str(binding.last_modified),
-    })
+    }
+
+    # from websockets.utils import get_emitter
+    # get_emitter().To([group]).Emit(binding.event, data)
+
+    from websockets.views import WebsocketMixin
+    WebsocketMixin.send_packet([group], binding.event, data)
 
 enqueue = send_message
