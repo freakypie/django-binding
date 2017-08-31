@@ -37,7 +37,12 @@ class BindingMixin(object):
         return str(self.get_binding().version)
 
     def get_object(self):
-        self.object = self.get_binding().all().get(self.kwargs['pk'])
+        try:
+            pk = int(self.kwargs['pk'])
+        except ValueError:
+            raise Http404()
+
+        self.object = self.get_binding().all().get(pk)
         if not self.object:
             raise Http404()
         return self.object
