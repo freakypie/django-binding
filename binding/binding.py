@@ -243,7 +243,8 @@ class Binding(object):
 
         # ensure that all objects are in the list that should be
         for obj in db_objects:
-            if obj.pk not in objects:
+            shared = self.object_cache.get(obj.pk)
+            if obj.pk not in objects or not shared:
                 self.save_instance(objects, obj, False)
                 added += 1
                 if timeout:
