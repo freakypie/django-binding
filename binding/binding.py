@@ -237,7 +237,7 @@ class Binding(object):
 
     def refresh(self, timeout=0):
         db_objects = self._get_queryset_from_db()
-        objects = self.meta_cache.get("objects")
+        objects = self.meta_cache.get("objects") or []
         remove_these = set(objects) - set([o.pk for o in db_objects])
         added = removed = 0
 
