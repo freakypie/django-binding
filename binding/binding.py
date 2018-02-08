@@ -152,7 +152,15 @@ class Binding(object):
         self.register()
 
     def register(self):
-        if len(self.bindings.members(self.bindings_key)) == 0:
+
+        # redis matches from the first part of the string
+        # so we take redis's results and do a direct comparison
+        matches = [
+            b
+            for b in self.bindings.members(self.bindings_key)
+            if b.bindings_key == self.bindings_key
+        ]
+        if len(matches) == 0:
             self.bindings.add(self.bindings_key, self)
             self.refresh()
 
