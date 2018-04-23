@@ -10,6 +10,7 @@ from django_redis import get_redis_connection
 class CacheBase(object):
 
     def __init__(self, prefix, cache_name="default", timeout=None):
+        self.con = get_redis_connection(cache_name)
         self.prefix = prefix
         self.cache = caches[cache_name]
         self.timeout = timeout
@@ -58,12 +59,35 @@ class CacheDict(CacheBase):
         keys = self.cache.keys(p)
         return self.cache.get_many(keys).values()
 
+    def set_add(self, key, *value):
+        key = self.get_key(key)
+        retval = self.con.sadd(key, *value)
+        if self.timeout:
+            self.con.expire(key, self.timeout)
+        else:
+            self.con.persist(key)
+        return retval
+
+    def set_remove(self, key, value):
+        return self.con.srem(self.get_key(key), value)
+
+    def set_exists(self, key, value):
+        return self.con.sismember(self.get_key(key), value)
+
+    def set_length(self, key):
+        return self.con.scard(self.get_key(key))
+
+    def set_all(self, key):
+        return self.con.smembers(self.get_key(key))
+
+    def set_clear(self, key):
+        return self.con.delete(self.get_key(key))
+
 
 class CacheArray(CacheBase):
 
     def __init__(self, prefix, cache_name="default", timeout=None):
         super(CacheArray, self).__init__(prefix, cache_name, timeout)
-        self.con = get_redis_connection(cache_name)
         self.array_key = self.get_key("set")
 
     def add(self, key, value, timeout=None):
@@ -166,7 +190,7 @@ class Binding(object):
 
     def create_meta_cache(self):
         return CacheDict(
-            prefix="binding:meta:{}".format(self.name),
+            prefix="binding:meta:2:{}".format(self.name),
             cache_name=self.cache_name
         )
 
@@ -184,48 +208,46 @@ class Binding(object):
 
     def clear(self, objects=False):
         self.meta_cache.clear()
+        self.meta_cache.set_clear("objects")
         if objects:
             self.object_cache.clear()
 
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
-        objects = self.keys()
         if self.model_matches(instance):
-            self.save_instance(objects, instance, created)
-        elif instance.id in objects:
-            self.delete_instance(objects, instance)
+            self.save_instance(instance, created)
+        elif self.meta_cache.set_exists("objects", instance.id):
+            self.delete_instance(instance)
 
     def model_deleted(self, instance=None, **kwargs):
         """ delete hook called when by signal """
-        objects = self.keys()
-        contained = instance.id in objects
-        # print("model deleted", instance)
-        if contained:
-            self.delete_instance(objects, instance)
+        self.delete_instance(instance)
 
-    def save_instance(self, objects, instance, created):
+    def save_instance(self, instance, created):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
-        if instance.id not in objects:
-            objects.append(instance.id)
         self.object_cache.set(instance.id, serialized)
-        self.meta_cache.set("objects", list(set(objects)))
+        self.meta_cache.set_add("objects", instance.id)
         self.bump()
         self.message(created and "create" or "update", serialized)
 
-    def delete_instance(self, objects, instance):
+    def delete_instance(self, instance):
         """ called when a matching model is deleted """
-        objects.remove(instance.id)
         # self.object_cache.expire(instance.id)
-        self.meta_cache.set("objects", objects)
-        self.bump()
-        self.message("delete", instance)
+        if self.meta_cache.set_remove("objects", instance.id):
+            self.bump()
+            self.message("delete", instance)
 
     def save_many_instances(self, instances):
         """ called when the binding is first attached """
         self.object_cache.set_many(instances)
-        self.meta_cache.set("objects", instances.keys())
-        self.bump()
+
+        changed = False
+        for pk in instances.keys():
+            changed = self.meta_cache.set_add("objects", pk) or changed
+
+        if changed:
+            self.bump()
 
     def model_matches(self, instance):
         """ called to determine if the model is part of the queryset """
@@ -245,7 +267,7 @@ class Binding(object):
 
     def refresh(self, timeout=0):
         db_objects = self._get_queryset_from_db()
-        objects = self.meta_cache.get("objects") or []
+        objects = self.meta_cache.set_all("objects") or []
         remove_these = set(objects) - set([o.pk for o in db_objects])
         added = removed = 0
 
@@ -253,7 +275,7 @@ class Binding(object):
         for obj in db_objects:
             shared = self.object_cache.get(obj.pk)
             if obj.pk not in objects or not shared:
-                self.save_instance(objects, obj, False)
+                self.save_instance(obj, False)
                 added += 1
                 if timeout:
                     time.sleep(timeout)
@@ -264,7 +286,7 @@ class Binding(object):
                 obj = self.model.objects.get(pk=pk)
             except self.model.DoesNotExist:
                 obj = self.model(pk=pk)
-            self.delete_instance(objects, obj)
+            self.delete_instance(obj)
             removed += 1
             if timeout:
                 time.sleep(timeout)
@@ -282,7 +304,8 @@ class Binding(object):
                     objects[o.id] = self.serialize_object(o)
                     new_objects[o.id] = objects[o.id]
             self.object_cache.set_many(new_objects)
-            self.meta_cache.set("objects", list(objects.keys()))
+            if len(objects.keys()):
+                self.meta_cache.set_add("objects", *objects.keys())
             self.bump()
         return objects or {}
 
@@ -291,7 +314,7 @@ class Binding(object):
         return self.meta_cache.get_key("objects")
 
     def _get_queryset_from_cache(self):
-        keys = self.meta_cache.get("objects", None)
+        keys = self.meta_cache.set_all("objects") or None
         if keys is not None:
             qs = self.object_cache.get_many(keys)
             # print("cache returned:", keys, qs)
@@ -371,4 +394,4 @@ class Binding(object):
         return self._get_queryset()
 
     def keys(self):
-        return self.meta_cache.get("objects") or []
+        return self.meta_cache.set_all("objects") or []

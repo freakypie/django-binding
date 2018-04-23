@@ -1,18 +1,16 @@
-import datetime
 import time
-import unittest
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 from django.utils.http import http_date
 from rest_framework.serializers import Serializer
 from rest_framework.test import APIRequestFactory
-from django.core.cache import cache
 
 from binding_test.models import Product
 
-from ._binding import TestBinding
 from ..drf import BoundModelViewSet
+from ._binding import TestBinding
 
 
 class ProductSerializer(Serializer):
@@ -76,7 +74,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 304)
 
         response = self.api(self.list_view, headers=dict(
-            HTTP_IF_NONE_MATCH=str(
+            HTTP_IF_NONE_MATCH='"{}"'.format(
                 self.viewset.get_binding().version
             )
         ))
@@ -96,7 +94,7 @@ class BoundModelViewsetTestCase(TestCase):
         self.assertEqual(response.status_code, 304)
 
         response = self.api(self.detail_view, kwargs=dict(pk=1), headers=dict(
-            HTTP_IF_NONE_MATCH=str(
+            HTTP_IF_NONE_MATCH='"{}"'.format(
                 self.viewset.get_binding().version
             )
         ))

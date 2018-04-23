@@ -1,5 +1,3 @@
-
-import datetime
 import logging
 import math
 import socket
@@ -93,12 +91,12 @@ def send_sync(binding, group=None, page=1, page_size=100):
                 try:
                     obj = binding.model.objects.get(pk=key)
                     if binding.model_matches(obj):
-                        binding.save_instance(keys, obj, False)
+                        binding.save_instance(obj, False)
                     else:
-                        binding.delete_instance(keys, obj)
+                        binding.delete_instance(obj)
                 except binding.model.DoesNotExist:
                     obj = binding.model(pk=key)
-                    binding.delete_instance(keys, obj)
+                    binding.delete_instance(obj)
 
     else:
         send_message(
@@ -131,5 +129,6 @@ def send_message(binding, packet, group=None):
 
     from websockets.views import WebsocketMixin
     WebsocketMixin.send_packet([group], binding.event, data)
+
 
 enqueue = send_message

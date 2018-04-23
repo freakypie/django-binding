@@ -6,8 +6,8 @@ from django.test import TestCase
 
 from binding_test.models import Product
 
+from ..binding import CacheArray, CacheDict
 from ._binding import TestBinding
-from ..binding import CacheDict, CacheArray
 
 
 class CacheDictTestCase(TestCase):
@@ -52,9 +52,12 @@ class BindingTestCase(TestCase):
         self.t2 = Product.objects.create(name="t2", venue="store")
         self.t3 = Product.objects.create(name="t3", venue="online")
 
-        TestBinding.bindings.clear()
+        TestBinding.clear_all()
 
         self.binding = TestBinding()
+        self.binding.clear()
+        self.binding.all()
+        self.assertEqual(self.binding.version, 1)
         self.binding.clearMessages()
 
     def tearDown(self):
@@ -110,9 +113,11 @@ class BindingTestCase(TestCase):
     def testDeleteSignal(self):
         self.assertEqual(len(self.binding.outbox), 0)
         self.assertEqual(self.binding.version, 1)
-        self.assertEqual(len(self.binding.all().values()), 3)
+        self.assertEqual(len(self.binding.keys()), 3)
         self.t3.delete()
+        self.binding._version = None
         self.assertEqual(self.binding.version, 2)
+        self.assertEqual(len(self.binding.keys()), 2)
         self.assertEqual(len(self.binding.outbox), 1)
 
     def testChangeSignal(self):
@@ -153,13 +158,16 @@ class BindingTestCase(TestCase):
 
     def testFilteredChange(self):
         self.binding.filters = dict(venue="store")
-        self.binding.bindings.add(
-            self.binding.bindings_key, self.binding)
+
+        # wipe out memory copy of this binding
+        self.binding.bindings.clear()
         self.binding.register()
         self.binding.clear()
         self.binding.all()
+        self.binding.clearMessages()
 
         self.assertEqual(len(self.binding.outbox), 0)
+        self.assertEqual(len(self.binding.keys()), 2)
 
         # change an object that the binding should ignore
         self.t3.name = "Foolish child"
