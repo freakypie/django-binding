@@ -268,13 +268,14 @@ class Binding(object):
     def refresh(self, timeout=0):
         db_objects = self._get_queryset_from_db()
         objects = self.meta_cache.set_all("objects") or []
-        remove_these = set(objects) - set([o.pk for o in db_objects])
+        remove_these = set(objects) - set([str(o.pk) for o in db_objects])
         added = removed = 0
 
         # ensure that all objects are in the list that should be
         for obj in db_objects:
             shared = self.object_cache.get(obj.pk)
-            if obj.pk not in objects or not shared:
+            if str(obj.pk) not in objects or not shared:
+                print("  - saving", obj)
                 self.save_instance(obj, False)
                 added += 1
                 if timeout:
@@ -286,6 +287,7 @@ class Binding(object):
                 obj = self.model.objects.get(pk=pk)
             except self.model.DoesNotExist:
                 obj = self.model(pk=pk)
+            print("  - delete", obj)
             self.delete_instance(obj)
             removed += 1
             if timeout:
