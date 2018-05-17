@@ -104,7 +104,7 @@ class CacheArray(CacheBase):
         if prefix:
             prefix = self.get_key(prefix)
         members = self.con.smembers(self.array_key)
-        keys = [m for m in members if m.startswith(prefix)]
+        keys = [m.decode("utf-8") for m in members if m.decode("utf-8").startswith(prefix)]
         retval = self.cache.get_many(keys).values()
 
         # extend key life
@@ -226,7 +226,7 @@ class Binding(object):
     def save_instance(self, instance, created):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
-        self.object_cache.set(instance.id, serialized)
+        self.object_cache.set(str(instance.id), serialized)
         self.meta_cache.set_add("objects", instance.id)
         self.bump()
         self.message(created and "create" or "update", serialized)
@@ -273,9 +273,9 @@ class Binding(object):
 
         # ensure that all objects are in the list that should be
         for obj in db_objects:
-            shared = self.object_cache.get(obj.pk)
+            shared = self.object_cache.get(str(obj.pk))
             if str(obj.pk) not in objects or not shared:
-                print("  - saving", obj)
+                # print("  - saving", obj)
                 self.save_instance(obj, False)
                 added += 1
                 if timeout:
@@ -287,7 +287,7 @@ class Binding(object):
                 obj = self.model.objects.get(pk=pk)
             except self.model.DoesNotExist:
                 obj = self.model(pk=pk)
-            print("  - delete", obj)
+            # print("  - delete", obj)
             self.delete_instance(obj)
             removed += 1
             if timeout:
@@ -318,6 +318,7 @@ class Binding(object):
     def _get_queryset_from_cache(self):
         keys = self.meta_cache.set_all("objects") or None
         if keys is not None:
+            keys = [k.decode("utf8") for k in keys]
             qs = self.object_cache.get_many(keys)
             # print("cache returned:", keys, qs)
             return qs

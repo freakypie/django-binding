@@ -22,7 +22,7 @@ class BindingMixin(object):
         raise Exception("No binding found on view")
 
     def get_queryset(self):
-        return self.get_binding().all().values()
+        return list(self.get_binding().all().values())
 
     def conditional(self, func):
         return condition(
