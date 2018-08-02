@@ -1,10 +1,14 @@
 from __future__ import print_function
 
+import logging
 import time
+import traceback
 
 from django.core.cache import caches
 from django.utils import timezone
 from django_redis import get_redis_connection
+
+debug = logging.getLogger("debug")
 
 
 class CacheBase(object):
@@ -266,15 +270,20 @@ class Binding(object):
         return self.excludes
 
     def refresh(self, timeout=0):
+        debug.error("REFRESHING AGAIN!", extra={
+            "trace": traceback.format_stack()
+        })
+
         db_objects = self._get_queryset_from_db()
         objects = self.meta_cache.set_all("objects") or []
-        remove_these = set(objects) - set([str(o.pk) for o in db_objects])
+        objects = [int(k) for k in objects]
+        remove_these = set(objects) - set([int(o.pk) for o in db_objects])
         added = removed = 0
 
         # ensure that all objects are in the list that should be
         for obj in db_objects:
             shared = self.object_cache.get(str(obj.pk))
-            if str(obj.pk) not in objects or not shared:
+            if obj.pk not in objects or not shared:
                 # print("  - saving", obj)
                 self.save_instance(obj, False)
                 added += 1
