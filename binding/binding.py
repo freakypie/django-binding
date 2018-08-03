@@ -270,10 +270,6 @@ class Binding(object):
         return self.excludes
 
     def refresh(self, timeout=0):
-        debug.error("REFRESHING AGAIN!", extra={
-            "trace": traceback.format_stack()
-        })
-
         db_objects = self._get_queryset_from_db()
         objects = self.meta_cache.set_all("objects") or []
         objects = [int(k) for k in objects]
