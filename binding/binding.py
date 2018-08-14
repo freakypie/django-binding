@@ -3,6 +3,7 @@ from __future__ import print_function
 import logging
 import time
 import traceback
+import six
 
 from django.core.cache import caches
 from django.utils import timezone
@@ -152,6 +153,26 @@ class Binding(object):
         return self.bindings.get(
             "{}:{}".format(model.__name__, name))
 
+    def _unload(self, value):
+        n = value
+        if isinstance(value, six.binary_type):
+            n = value.decode("utf8")
+        elif isinstance(value, dict):
+            n = {}
+            for key in value:
+                if isinstance(key, six.binary_type):
+                    n[key.decode("utf8")] = self._unload(value[key])
+                else:
+                    n[key] = self._unload(value[key])
+        elif isinstance(value, list):
+            n = []
+            for v in value:
+                if isinstance(v, six.binary_type):
+                    n.append(v.decode("utf8"))
+                else:
+                    n.append(v)
+        return n
+
     def __getstate__(self):
         odict = self.__dict__.copy()
         for key in ['_version', 'bindings', 'meta_cache', 'object_cache']:
@@ -160,6 +181,8 @@ class Binding(object):
         return odict
 
     def __setstate__(self, data):
+        if six.PY3:
+            data = self._unload(data)
         self.__dict__.update(data)
         self.meta_cache = self.create_meta_cache()
         self.object_cache = self.create_object_cache()
