@@ -41,7 +41,7 @@ class CacheDict(CacheBase):
         ])
         retval = {}
         for key, value in many.items():
-            retval[int(key.rsplit(":")[-1])] = value
+            retval[key.rsplit(":")[-1]] = value
         return retval
 
     def set_many(self, objects, timeout=None):
@@ -239,11 +239,14 @@ class Binding(object):
         if objects:
             self.object_cache.clear()
 
+    def get_instance_key(self, instance):
+        return str(instance.id)
+
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
         if self.model_matches(instance):
             self.save_instance(instance, created)
-        elif self.meta_cache.set_exists("objects", instance.id):
+        elif self.meta_cache.set_exists("objects", self.get_instance_key(instance)):
             self.delete_instance(instance)
 
     def model_deleted(self, instance=None, **kwargs):
@@ -253,15 +256,15 @@ class Binding(object):
     def save_instance(self, instance, created):
         """ called when a matching model is saved """
         serialized = self.serialize_object(instance)
-        self.object_cache.set(str(instance.id), serialized)
-        self.meta_cache.set_add("objects", instance.id)
+        self.object_cache.set(str(self.get_instance_key(instance)), serialized)
+        self.meta_cache.set_add("objects", self.get_instance_key(instance))
         self.bump()
         self.message(created and "create" or "update", serialized)
 
     def delete_instance(self, instance):
         """ called when a matching model is deleted """
-        # self.object_cache.expire(instance.id)
-        if self.meta_cache.set_remove("objects", instance.id):
+        # self.object_cache.expire(self.get_instance_key(instance))
+        if self.meta_cache.set_remove("objects", self.get_instance_key(instance)):
             self.bump()
             self.message("delete", instance)
 
@@ -326,13 +329,14 @@ class Binding(object):
         objects = self._get_queryset_from_cache()
         if self.db and objects is None:
             db_objects = self._get_queryset_from_db()
-            keys = [o.id for o in db_objects]
+            keys = [self.get_instance_key(o) for o in db_objects]
             objects = self.object_cache.get_many(keys)
             new_objects = {}
             for o in db_objects:
-                if o.id not in objects:
-                    objects[o.id] = self.serialize_object(o)
-                    new_objects[o.id] = objects[o.id]
+                key = self.get_instance_key(o)
+                if key not in objects:
+                    objects[key] = self.serialize_object(o)
+                    new_objects[key] = objects[key]
             self.object_cache.set_many(new_objects)
             if len(objects.keys()):
                 self.meta_cache.set_add("objects", *objects.keys())
