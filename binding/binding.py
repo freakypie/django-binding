@@ -239,8 +239,11 @@ class Binding(object):
         if objects:
             self.object_cache.clear()
 
+    def get_lookup_field(self):
+        return 'id'
+
     def get_instance_key(self, instance):
-        return str(instance.id)
+        return str(getattr(instance, self.get_lookup_field()))
 
     def model_saved(self, instance=None, created=None, **kwargs):
         """ save hook called when by signal """
@@ -298,14 +301,15 @@ class Binding(object):
     def refresh(self, timeout=0):
         db_objects = self._get_queryset_from_db()
         objects = self.meta_cache.set_all("objects") or []
-        objects = [int(k) for k in objects]
-        remove_these = set(objects) - set([int(o.pk) for o in db_objects])
+        objects = [k.decode() for k in objects]
+        remove_these = set(objects) - set([self.get_instance_key(o) for o in db_objects])
         added = removed = 0
 
         # ensure that all objects are in the list that should be
         for obj in db_objects:
-            shared = self.object_cache.get(str(obj.pk))
-            if obj.pk not in objects or not shared:
+            key = self.get_instance_key(obj)
+            shared = self.object_cache.get(key)
+            if key not in objects or not shared:
                 # print("  - saving", obj)
                 self.save_instance(obj, False)
                 added += 1
@@ -313,11 +317,12 @@ class Binding(object):
                     time.sleep(timeout)
 
         # remove objects from the list that shouldn't be
-        for pk in remove_these:
+        for key in remove_these:
             try:
-                obj = self.model.objects.get(pk=pk)
+                lookup = self.get_lookup_field()
+                obj = self.model.objects.get(**{lookup: key})
             except self.model.DoesNotExist:
-                obj = self.model(pk=pk)
+                obj = self.model(**{lookup: key})
             # print("  - delete", obj)
             self.delete_instance(obj)
             removed += 1
