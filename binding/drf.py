@@ -38,7 +38,7 @@ class BindingMixin(object):
 
     def get_object(self):
         try:
-            pk = int(self.kwargs['pk'])
+            pk = str(self.kwargs['pk'])
         except ValueError:
             raise Http404()
 
